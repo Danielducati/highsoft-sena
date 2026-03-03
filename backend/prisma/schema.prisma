@@ -1,0 +1,287 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+// ─── Roles ────────────────────────────────────────────────────────────────────
+model Rol {
+  id     Int    @id @default(autoincrement()) @map("PK_id_rol")
+  nombre String @db.VarChar(100) @map("Nombre")
+  estado String @default("Activo") @db.VarChar(30) @map("Estado")
+
+  usuarios      Usuario[]
+  rolesPermisos RolPermiso[]
+
+  @@map("Roles")
+}
+
+// ─── Permisos ─────────────────────────────────────────────────────────────────
+model Permiso {
+  id     Int    @id @default(autoincrement()) @map("PK_id_permisos")
+  nombre String @db.VarChar(100) @map("Nombre")
+
+  rolesPermisos RolPermiso[]
+
+  @@map("Permisos")
+}
+
+// ─── Roles_Permisos ───────────────────────────────────────────────────────────
+model RolPermiso {
+  id        Int @id @default(autoincrement()) @map("PK_id_roles_permisos")
+  rolId     Int @map("FK_id_rol")
+  permisoId Int @map("FK_id_permiso")
+
+  rol     Rol     @relation(fields: [rolId],     references: [id], onDelete: NoAction, onUpdate: NoAction)
+  permiso Permiso @relation(fields: [permisoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("Roles_Permisos")
+}
+
+// ─── Usuarios ─────────────────────────────────────────────────────────────────
+model Usuario {
+  id         Int    @id @default(autoincrement()) @map("PK_id_usuario")
+  correo     String @unique @db.VarChar(100) @map("Correo")
+  contrasena String @db.VarChar(256) @map("Contrasena")
+  estado     String @default("Activo") @db.VarChar(30) @map("Estado")
+  rolId      Int    @map("FK_id_rol")
+
+  rol      Rol       @relation(fields: [rolId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  empleado Empleado?
+  cliente  Cliente?
+
+  @@map("Usuarios")
+}
+
+// ─── Empleado ─────────────────────────────────────────────────────────────────
+model Empleado {
+  id              Int     @id @default(autoincrement()) @map("PK_id_empleado")
+  nombre          String  @db.VarChar(100)
+  apellido        String  @db.VarChar(100)
+  tipoDocumento   String? @db.VarChar(30)  @map("tipo_documento")
+  numeroDocumento String? @db.VarChar(20)  @map("numero_documento")
+  correo          String? @db.VarChar(100)
+  telefono        String? @db.VarChar(20)
+  ciudad          String? @db.VarChar(40)
+  especialidad    String? @db.VarChar(50)
+  direccion       String? @db.VarChar(190)
+  fotoPerfil      String? @db.VarChar(500) @map("foto_perfil")
+  estado          String  @default("Activo") @db.VarChar(30) @map("Estado")
+  usuarioId       Int     @unique @map("fk_id_usuario")
+
+  usuario              Usuario               @relation(fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  horarios             Horario[]
+  empleadoServicios    EmpleadoServicio[]
+  agendamientoDetalles AgendamientoDetalle[]
+  ventaDetalles        VentaDetalle[]
+
+  @@map("Empleado")
+}
+
+// ─── Horarios ─────────────────────────────────────────────────────────────────
+model Horario {
+  id         Int      @id @default(autoincrement()) @map("PK_id_horario")
+  empleadoId Int      @map("FK_id_empleado")
+  horaInicio DateTime @db.Time @map("hora_inicio")
+  horaFinal  DateTime @db.Time @map("hora_final")
+  fecha      DateTime @db.Date
+  diaSemana  String?  @db.VarChar(20) @map("dia_semana")
+
+  empleado  Empleado  @relation(fields: [empleadoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  novedades Novedad[]
+
+  @@map("Horarios")
+}
+
+// ─── Novedades ────────────────────────────────────────────────────────────────
+model Novedad {
+  id          Int       @id @default(autoincrement()) @map("PK_id_novedad")
+  horarioId   Int       @map("FK_id_horario")
+  tipoNovedad String?   @db.VarChar(100) @map("tipo_novedad")
+  descripcion String?   @db.VarChar(600)
+  fechaInicio DateTime? @db.Date @map("fecha_inicio")
+  fechaFinal  DateTime? @db.Date @map("fecha_final")
+  horaInicio  DateTime? @db.Time @map("hora_inicio")
+  horaFinal   DateTime? @db.Time @map("hora_final")
+  estado      String    @default("Activo") @db.VarChar(30) @map("Estado")
+
+  horario Horario @relation(fields: [horarioId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("Novedades")
+}
+
+// ─── Categoria_servicios ──────────────────────────────────────────────────────
+model CategoriaServicio {
+  id          Int     @id @default(autoincrement()) @map("PK_id_categoria_servicios")
+  nombre      String  @db.VarChar(100) @map("Nombre")
+  descripcion String? @db.VarChar(600)
+  color       String? @db.VarChar(20)
+  estado      String  @default("Activo") @db.VarChar(30) @map("Estado")
+
+  servicios Servicio[]
+
+  @@map("Categoria_servicios")
+}
+
+// ─── Servicio ─────────────────────────────────────────────────────────────────
+model Servicio {
+  id             Int      @id @default(autoincrement()) @map("PK_id_servicio")
+  categoriaId    Int      @map("FK_categoria_servicios")
+  nombre         String   @db.VarChar(100)
+  descripcion    String?  @db.VarChar(600)
+  duracion       Int?     @map("Duracion")
+  precio         Decimal? @db.Decimal(10, 2) @map("Precio")
+  estado         String   @default("Activo") @db.VarChar(30) @map("Estado")
+  imagenServicio String?  @db.VarChar(500) @map("imagen_servicio")
+
+  categoria            CategoriaServicio     @relation(fields: [categoriaId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  empleadoServicios    EmpleadoServicio[]
+  agendamientoDetalles AgendamientoDetalle[]
+  detalleCotizaciones  DetalleCotizacion[]
+  ventaDetalles        VentaDetalle[]
+
+  @@map("Servicio")
+}
+
+// ─── Empleado_Servicio ────────────────────────────────────────────────────────
+model EmpleadoServicio {
+  id         Int @id @default(autoincrement()) @map("PK_id_Empleado_Servicio")
+  servicioId Int @map("FK_id_servicio")
+  empleadoId Int @map("FK_id_empleado")
+
+  servicio Servicio @relation(fields: [servicioId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  empleado Empleado @relation(fields: [empleadoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("Empleado_Servicio")
+}
+
+// ─── Cliente ──────────────────────────────────────────────────────────────────
+model Cliente {
+  id              Int     @id @default(autoincrement()) @map("PK_id_cliente")
+  nombre          String  @db.VarChar(100)
+  apellido        String  @db.VarChar(100)
+  tipoDocumento   String? @db.VarChar(30)  @map("tipo_documento")
+  numeroDocumento String? @db.VarChar(20)  @map("numero_documento")
+  correo          String? @db.VarChar(100)
+  telefono        String? @db.VarChar(20)
+  direccion       String? @db.VarChar(190)
+  fotoPerfil      String  @db.VarChar(500) @map("foto_perfil")
+  estado          String  @default("Activo") @db.VarChar(30) @map("Estado")
+  usuarioId       Int     @unique @map("fk_id_usuario")
+
+  usuario      Usuario            @relation(fields: [usuarioId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cotizaciones Cotizacion[]
+  citas        AgendamientoCita[]
+  ventas       Venta[]
+
+  @@map("CLiente")
+}
+
+// ─── Cotizacion ───────────────────────────────────────────────────────────────
+model Cotizacion {
+  id         Int       @id @default(autoincrement()) @map("PK_id_cotizacion")
+  clienteId  Int?      @map("FK_id_cliente")
+  fecha      DateTime? @db.Date @map("Fecha")
+  valor      Decimal?  @db.Decimal(10, 2) @map("Valor")
+  iva        Decimal?  @db.Decimal(10, 2) @map("Iva")
+  subtotal   Decimal?  @db.Decimal(10, 2) @map("Subtotal")
+  descuento  Decimal?  @db.Decimal(10, 2) @map("Descuento")
+  notas      String?   @db.VarChar(900) @map("Notas")
+  horaInicio DateTime? @db.Time @map("Hora_inicio")
+  total      Decimal?  @db.Decimal(12, 2) @map("TOTAL")
+  estado     String    @default("Activo") @db.VarChar(30) @map("Estado")
+
+  cliente  Cliente?            @relation(fields: [clienteId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  detalles DetalleCotizacion[]
+  citas    AgendamientoCita[]
+
+  @@map("Cotizacion")
+}
+
+// ─── Detalle_cotizacion ───────────────────────────────────────────────────────
+model DetalleCotizacion {
+  id           Int      @id @default(autoincrement()) @map("PK_id_detalle_cotizacion")
+  cotizacionId Int      @map("FK_id_cotizacion")
+  servicioId   Int      @map("FK_id_servicio")
+  precio       Decimal? @db.Decimal(10, 2) @map("Precio")
+  cantidad     Int      @default(1) @map("Cantidad")
+
+  cotizacion Cotizacion @relation(fields: [cotizacionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  servicio   Servicio   @relation(fields: [servicioId],   references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("Detalle_cotizacion")
+}
+
+// ─── Agendamiento_citas ───────────────────────────────────────────────────────
+model AgendamientoCita {
+  id           Int       @id @default(autoincrement()) @map("PK_id_cita")
+  clienteId    Int?      @map("FK_id_cliente")
+  cotizacionId Int?      @map("FK_id_cotizacion")
+  horario      DateTime? @db.Time @map("Horario")
+  fecha        DateTime  @db.Date @map("Fecha")
+  estado       String    @default("Pendiente") @db.VarChar(30) @map("Estado")
+  notas        String?   @db.VarChar(300) @map("Notas")
+
+  cliente    Cliente?    @relation(fields: [clienteId],    references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cotizacion Cotizacion? @relation(fields: [cotizacionId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  detalles   AgendamientoDetalle[]
+  ventas     Venta[]
+
+  @@map("Agendamiento_citas")
+}
+
+// ─── Agendamiento_detalle ─────────────────────────────────────────────────────
+model AgendamientoDetalle {
+  id         Int      @id @default(autoincrement()) @map("PK_id_agendamiento_detalle")
+  citaId     Int      @map("FK_id_agendamiento_cita")
+  servicioId Int      @map("FK_id_servicios")
+  empleadoId Int?     @map("FK_id_empleado")
+  precio     Decimal? @db.Decimal(10, 2) @map("Precio")
+  detalle    String?  @db.VarChar(500) @map("Detalle")
+
+  cita     AgendamientoCita @relation(fields: [citaId],     references: [id], onDelete: NoAction, onUpdate: NoAction)
+  servicio Servicio         @relation(fields: [servicioId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  empleado Empleado?        @relation(fields: [empleadoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("Agendamiento_detalle")
+}
+
+// ─── Venta ────────────────────────────────────────────────────────────────────
+model Venta {
+  id         Int       @id @default(autoincrement()) @map("PK_id_venta")
+  clienteId  Int?      @map("FK_id_cliente")
+  citaId     Int?      @map("FK_id_cita")
+  iva        Decimal?  @db.Decimal(10, 2) @map("Iva")
+  fecha      DateTime? @db.Date @map("Fecha")
+  total      Decimal?  @db.Decimal(12, 2) @map("Total")
+  descuento  Decimal?  @db.Decimal(10, 2)
+  metodoPago String?   @db.VarChar(40) @map("metodo_pago")
+  estado     String    @default("Activo") @db.VarChar(30) @map("Estado")
+
+  cliente  Cliente?          @relation(fields: [clienteId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  cita     AgendamientoCita? @relation(fields: [citaId],    references: [id], onDelete: NoAction, onUpdate: NoAction)
+  detalles VentaDetalle[]
+
+  @@map("Venta")
+}
+
+// ─── Venta_detalle ────────────────────────────────────────────────────────────
+model VentaDetalle {
+  id         Int     @id @default(autoincrement()) @map("PK_id_venta_detalle")
+  ventaId    Int     @map("FK_id_venta")
+  servicioId Int?    @map("FK_id_servicio")
+  empleadoId Int?    @map("FK_id_empleado")
+  cantidad   Int     @default(1) @map("Cantidad")
+  precio     Decimal @db.Decimal(12, 2) @map("Precio")
+  subtotal   Decimal @db.Decimal(12, 2) @map("Subtotal")
+  detalle    String? @db.VarChar(500) @map("Detalle")
+
+  venta    Venta     @relation(fields: [ventaId],    references: [id], onDelete: NoAction, onUpdate: NoAction)
+  servicio Servicio? @relation(fields: [servicioId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+  empleado Empleado? @relation(fields: [empleadoId], references: [id], onDelete: NoAction, onUpdate: NoAction)
+
+  @@map("Venta_detalle")
+}
