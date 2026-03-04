@@ -5,15 +5,16 @@ const app     = express();
 app.use(cors());
 app.use(express.json());
 
-const appointmentRoutes = require('./routes/appointments.routes.js');
-const employeeRoutes    = require('./routes/employees.routes.js');
-const clientRoutes      = require('./routes/clients.routes.js');
-const salesRoutes       = require('./routes/sales.routes.js');
-const categoriesRoutes  = require('./routes/categories.routes.js');
-const schedulesRoutes   = require('./routes/schedules.routes.js');
-const dashboardRoutes   = require('./routes/dashboard.routes.js');
-const newsRoutes        = require('./routes/news.routes.js');
-const servicesRoutes    = require('./routes/services.routes.js');
+const appointmentRoutes  = require('./routes/appointments.routes.js');
+const employeeRoutes     = require('./routes/employees.routes.js');
+const clientRoutes       = require('./routes/clients.routes.js');
+const salesRoutes        = require('./routes/sales.routes.js');
+const categoriesRoutes   = require('./routes/categories.routes.js');
+const schedulesRoutes    = require('./routes/schedules.routes.js');
+const dashboardRoutes    = require('./routes/dashboard.routes.js');
+const newsRoutes         = require('./routes/news.routes.js');
+const servicesRoutes     = require('./routes/services.routes.js');
+const quotationsRoutes   = require('./routes/quotations.routes.js');
 const { router: authRouter } = require('./routes/auth.routes.js');
 
 app.use('/appointments',     appointmentRoutes);
@@ -26,10 +27,11 @@ app.use('/schedules',        schedulesRoutes);
 app.use('/dashboard',        dashboardRoutes);
 app.use('/news',             newsRoutes);
 app.use('/services',         servicesRoutes);
+app.use('/quotations',       quotationsRoutes);
 app.use('/auth',             authRouter);
 
 // Pendientes
-const pending = ['roles', 'users', 'quotations'];
+const pending = ['roles', 'users'];
 pending.forEach(name => {
   app.use(`/${name}`, (req, res) => {
     res.json({ message: `Ruta /${name} pendiente de migrar a Prisma` });

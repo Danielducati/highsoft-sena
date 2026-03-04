@@ -1,33 +1,44 @@
 // src/models/sales.js
 const prisma = require("../config/prisma");
 
+// Transforma Prisma → contrato que espera el frontend (interface Sale)
+// El frontend espera campos con estas claves exactas:
+//   Cliente, Servicio, Cantidad, Precio, Subtotal,
+//   metodo_pago, descuento, Total, Iva, Fecha, Estado
 function formatVenta(v) {
+const primerItem = v.detalles?.[0];
+
 return {
-    id:         v.id,
-    clienteId:  v.clienteId,
-    citaId:     v.citaId,
-    fecha:      v.fecha?.toISOString().split("T")[0] ?? null,
-    subtotal:   v.detalles.reduce((s, d) => s + Number(d.subtotal), 0),
-    iva:        Number(v.iva     ?? 0),
-    descuento:  Number(v.descuento ?? 0),
-    total:      Number(v.total   ?? 0),
-    metodoPago: v.metodoPago ?? "",
-    estado:     v.estado,
-    client: v.cliente ? {
-    name:  `${v.cliente.nombre} ${v.cliente.apellido}`,
-    phone: v.cliente.telefono ?? "",
-    } : null,
-    items: v.detalles.map(d => ({
-    id:          d.id,
-    servicioId:  d.servicioId,
-    nombre:      d.servicio?.nombre ?? "Servicio",
-    precio:      Number(d.precio),
-    cantidad:    d.cantidad,
-    subtotal:    Number(d.subtotal),
-    empleadoId:  d.empleadoId,
-    empleado:    d.empleado
-        ? `${d.empleado.nombre} ${d.empleado.apellido}`
-        : null,
+    // Campos que renderiza la tabla
+    id:          v.id,
+    Cliente:     v.cliente
+                ? `${v.cliente.nombre} ${v.cliente.apellido}`
+                : "—",
+    Servicio:    (v.detalles ?? []).map(d => d.servicio?.nombre ?? "").filter(Boolean).join(", ") || "—",
+    Cantidad:    primerItem?.cantidad        ?? 1,
+    Precio:      Number(primerItem?.precio   ?? 0),
+    Subtotal:    (v.detalles ?? []).reduce((s, d) => s + Number(d.subtotal ?? 0), 0),
+    metodo_pago: v.metodoPago  ?? "",
+    descuento:   Number(v.descuento ?? 0),
+    Total:       Number(v.total     ?? 0),
+    Iva:         Number(v.iva       ?? 0),
+    Fecha:       v.fecha?.toISOString().split("T")[0] ?? null,
+    Estado:      v.estado ?? "Activo",
+
+    // Campos extra para el modal de detalle
+    clienteId:   v.clienteId,
+    citaId:      v.citaId,
+    items:       (v.detalles ?? []).map(d => ({
+    id:         d.id,
+    servicioId: d.servicioId,
+    nombre:     d.servicio?.nombre ?? "Servicio",
+    precio:     Number(d.precio),
+    cantidad:   d.cantidad,
+    subtotal:   Number(d.subtotal),
+    empleadoId: d.empleadoId,
+    empleado:   d.empleado
+                    ? `${d.empleado.nombre} ${d.empleado.apellido}`
+                    : null,
     })),
 };
 }
@@ -52,12 +63,11 @@ const v = await prisma.venta.findUnique({ where: { id: Number(id) }, include });
 return v ? formatVenta(v) : null;
 };
 
-// Obtener citas disponibles para convertir en venta
 const getAvailableAppointments = async () => {
 const citas = await prisma.agendamientoCita.findMany({
     where:   { estado: { in: ["Pendiente", "Confirmada", "Confirmado"] } },
     include: {
-    cliente: true,
+    cliente:  true,
     detalles: { include: { servicio: true, empleado: true } },
     },
     orderBy: { fecha: "desc" },
@@ -82,7 +92,6 @@ return prisma.$transaction(async (tx) => {
     let resolvedClienteId = clienteId ? Number(clienteId) : null;
     let items = servicios ?? [];
 
-    // Si es venta por cita, tomar servicios de Agendamiento_detalle
     if (tipo === "cita" && citaId) {
     const detalles = await tx.agendamientoDetalle.findMany({
         where: { citaId: Number(citaId) },
@@ -126,7 +135,6 @@ return prisma.$transaction(async (tx) => {
     });
     }
 
-    // Marcar cita como Completada
     if (tipo === "cita" && citaId) {
     await tx.agendamientoCita.update({
         where: { id: Number(citaId) },

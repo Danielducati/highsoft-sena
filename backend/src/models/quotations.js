@@ -1,307 +1,141 @@
-const express = require("express");
-const router = express.Router();
-const { pool, sql } = require("../config/db");
-const { verificarToken } = require("./auth");
+// src/models/quotations.js
+const prisma = require("../config/prisma");
 
-// Mapa de estados frontend → BD
 const ESTADO_MAP = {
-    pending: "Pendiente",
-    approved: "Aprobada",
-    rejected: "Rechazada",
-    cancelled: "Cancelada",
-    expired: "Expirada",
-    };
+  pending:   "Pendiente",
+  approved:  "Aprobada",
+  rejected:  "Rechazada",
+  cancelled: "Cancelada",
+  expired:   "Expirada",
+};
 
-    const ESTADO_MAP_REVERSE = {
-    Pendiente: "pending",
-    Aprobada: "approved",
-    Rechazada: "rejected",
-    Cancelada: "cancelled",
-    Expirada: "expired",
-    };
+const ESTADO_MAP_REVERSE = {
+  Pendiente: "pending",
+  Aprobada:  "approved",
+  Rechazada: "rejected",
+  Cancelada: "cancelled",
+  Expirada:  "expired",
+};
 
-    // ==========================================
-    // GET → OBTENER TODAS LAS COTIZACIONES
-    // ==========================================
-    router.get("/", async (req, res) => {
-    try {
-        const connection = await pool;
+function formatQuotation(c) {
+  return {
+    id:          c.id,
+    FK_id_cliente: c.clienteId,
+    clientName:  c.cliente ? `${c.cliente.nombre} ${c.cliente.apellido}` : "Sin cliente",
+    clientEmail: c.cliente?.correo ?? "",
+    date:        c.fecha ? c.fecha.toISOString().split("T")[0] : null,
+    startTime:   c.horaInicio ? c.horaInicio.toISOString().slice(11, 16) : null,
+    subtotal:    Number(c.subtotal  ?? 0),
+    discount:    Number(c.descuento ?? 0),
+    iva:         Number(c.iva       ?? 0),
+    total:       Number(c.total     ?? 0),
+    notes:       c.notas ?? "",
+    status:      ESTADO_MAP_REVERSE[c.estado] ?? "pending",
+    items:       (c.detalles ?? []).map(d => ({
+      serviceId:   d.servicioId,
+      serviceName: d.servicio?.nombre ?? "Servicio",
+      price:       Number(d.precio   ?? 0),
+      quantity:    d.cantidad ?? 1,
+    })),
+  };
+}
 
-        const result = await connection.request().query(`
-        SELECT 
-            ce.PK_id_cotizacion AS id,
-            ce.FK_id_cliente,
-            c.nombre + ' ' + c.apellido AS clientName,
-            c.correo AS clientEmail,
-            ce.Fecha AS date,
-            ce.Valor AS valor,
-            ce.Iva AS iva,
-            ce.Subtotal AS subtotal,
-            ce.Descuento AS discount,
-            ce.TOTAL AS total,
-            ce.Notas AS notes,
-            ce.Hora_inicio AS startTime,
-            ce.Estado AS estado
-        FROM Cotizacion_encabezado ce
-        LEFT JOIN Cliente c ON ce.FK_id_cliente = c.PK_id_cliente
-        ORDER BY ce.Fecha DESC
-        `);
+const getAll = async () => {
+  const data = await prisma.cotizacion.findMany({
+    include: {
+      cliente:  true,
+      detalles: { include: { servicio: true } },
+    },
+    orderBy: { fecha: "desc" },
+  });
+  return data.map(formatQuotation);
+};
 
-        // Para cada cotización obtener sus detalles
-        const cotizaciones = await Promise.all(result.recordset.map(async (cot) => {
-        const detalles = await connection.request()
-            .input("id", sql.Int, cot.id)
-            .query(`
-            SELECT 
-                dc.PK_id_detalle_cotizacion,
-                dc.FK_id_servicio AS serviceId,
-                s.nombre AS serviceName,
-                dc.Precio AS price,
-                dc.Cantidad AS quantity
-            FROM Detalle_cotizacion dc
-            JOIN Servicio s ON dc.FK_id_servicio = s.PK_id_servicio
-            WHERE dc.FK_id_cotizacion = @id
-            `);
+const getById = async (id) => {
+  const c = await prisma.cotizacion.findUnique({
+    where:   { id: Number(id) },
+    include: {
+      cliente:  true,
+      detalles: { include: { servicio: true } },
+    },
+  });
+  return c ? formatQuotation(c) : null;
+};
 
-        return {
-            ...cot,
-            status: ESTADO_MAP_REVERSE[cot.estado] || "pending",
-            items: detalles.recordset,
-        };
-        }));
+const create = async ({ clienteId, fecha, horaInicio, notas, descuento = 0, servicios }) => {
+  const subtotal = servicios.reduce((s, sv) => s + sv.precio * sv.cantidad, 0);
+  const iva      = subtotal * 0.19;
+  const total    = subtotal + iva - descuento;
 
-        res.json(cotizaciones);
-
-    } catch (error) {
-        console.error("ERROR cotizaciones:", error);
-        res.status(500).json({ error: "Error al obtener cotizaciones" });
-    }
+  return prisma.$transaction(async (tx) => {
+    const cot = await tx.cotizacion.create({
+      data: {
+        clienteId:  Number(clienteId),
+        fecha:      fecha ? new Date(fecha) : new Date(),
+        horaInicio: horaInicio ? new Date(`1970-01-01T${horaInicio}:00`) : null,
+        subtotal,
+        iva,
+        valor:      subtotal,
+        descuento,
+        total,
+        notas:      notas ?? null,
+        estado:     "Pendiente",
+      },
     });
 
-
-    // ==========================================
-    // GET → OBTENER UNA COTIZACIÓN POR ID
-    // ==========================================
-    router.get("/:id", async (req, res) => {
-    try {
-        const connection = await pool;
-
-        const result = await connection.request()
-        .input("id", sql.Int, req.params.id)
-        .query(`
-            SELECT 
-            ce.PK_id_cotizacion AS id,
-            ce.FK_id_cliente,
-            c.nombre + ' ' + c.apellido AS clientName,
-            c.correo AS clientEmail,
-            ce.Fecha AS date,
-            ce.Subtotal AS subtotal,
-            ce.Descuento AS discount,
-            ce.TOTAL AS total,
-            ce.Notas AS notes,
-            ce.Hora_inicio AS startTime,
-            ce.Estado AS estado
-            FROM Cotizacion_encabezado ce
-            LEFT JOIN Cliente c ON ce.FK_id_cliente = c.PK_id_cliente
-            WHERE ce.PK_id_cotizacion = @id
-        `);
-
-        if (result.recordset.length === 0) {
-        return res.status(404).json({ error: "Cotización no encontrada" });
-        }
-
-        const cot = result.recordset[0];
-
-        const detalles = await connection.request()
-        .input("id", sql.Int, cot.id)
-        .query(`
-            SELECT 
-            dc.FK_id_servicio AS serviceId,
-            s.nombre AS serviceName,
-            dc.Precio AS price,
-            dc.Cantidad AS quantity
-            FROM Detalle_cotizacion dc
-            JOIN Servicio s ON dc.FK_id_servicio = s.PK_id_servicio
-            WHERE dc.FK_id_cotizacion = @id
-        `);
-
-        res.json({
-        ...cot,
-        status: ESTADO_MAP_REVERSE[cot.estado] || "pending",
-        items: detalles.recordset,
-        });
-
-    } catch (error) {
-        console.error("ERROR cotización:", error);
-        res.status(500).json({ error: "Error al obtener cotización" });
+    for (const sv of servicios) {
+      await tx.detalleCotizacion.create({
+        data: {
+          cotizacionId: cot.id,
+          servicioId:   Number(sv.id_servicio),
+          precio:       sv.precio,
+          cantidad:     sv.cantidad,
+        },
+      });
     }
+
+    return cot.id;
+  });
+};
+
+const update = async (id, { clienteId, fecha, horaInicio, notas, descuento = 0, servicios }) => {
+  const subtotal = servicios.reduce((s, sv) => s + (sv.precio || sv.price) * (sv.cantidad || sv.quantity), 0);
+  const iva      = subtotal * 0.19;
+  const total    = subtotal + iva - descuento;
+
+  return prisma.$transaction(async (tx) => {
+    await tx.cotizacion.update({
+      where: { id: Number(id) },
+      data: {
+        clienteId:  Number(clienteId),
+        fecha:      fecha ? new Date(fecha) : undefined,
+        horaInicio: horaInicio ? new Date(`1970-01-01T${horaInicio}:00`) : null,
+        subtotal, iva, valor: subtotal, descuento, total,
+        notas: notas ?? null,
+      },
     });
 
+    await tx.detalleCotizacion.deleteMany({ where: { cotizacionId: Number(id) } });
 
-    // ==========================================
-    // POST → CREAR COTIZACIÓN
-    // ==========================================
-    router.post("/", verificarToken, async (req, res) => {
-    try {
-        const {
-        id_cliente,
-        fecha,
-        hora_inicio,
-        notas,
-        descuento = 0,
-        servicios, // [{ id_servicio, cantidad, precio }]
-        } = req.body;
-
-        if (!id_cliente || !servicios || servicios.length === 0) {
-        return res.status(400).json({ error: "Cliente y al menos un servicio son requeridos" });
-        }
-
-        const connection = await pool;
-
-        // Calcular totales
-        const subtotal = servicios.reduce((sum, s) => sum + (s.precio * s.cantidad), 0);
-        const iva = subtotal * 0.19;
-        const total = subtotal + iva - descuento;
-
-        // Insertar encabezado
-        const encabezado = await connection.request()
-        .input("id_cliente", sql.Int, id_cliente)
-        .input("id_usuario", sql.Int, req.usuario.id)
-        .input("fecha", sql.Date, fecha || new Date())
-        .input("hora_inicio", sql.VarChar(10), hora_inicio || null)
-        .input("subtotal", sql.Decimal(12, 2), subtotal)
-        .input("iva", sql.Decimal(12, 2), iva)
-        .input("valor", sql.Decimal(12, 2), subtotal)
-        .input("descuento", sql.Decimal(12, 2), descuento)
-        .input("total", sql.Decimal(12, 2), total)
-        .input("notas", sql.VarChar(500), notas || null)
-        .query(`
-            INSERT INTO Cotizacion_encabezado 
-            (FK_id_cliente, FK_id_usuarios, Fecha, Hora_inicio, Subtotal, Iva, Valor, Descuento, TOTAL, Notas, Estado)
-            OUTPUT INSERTED.*
-            VALUES 
-            (@id_cliente, @id_usuario, @fecha, @hora_inicio, @subtotal, @iva, @valor, @descuento, @total, @notas, 'Pendiente')
-        `);
-
-        const id_cotizacion = encabezado.recordset[0].PK_id_cotizacion;
-
-        // Insertar detalles
-        for (const servicio of servicios) {
-        await connection.request()
-            .input("id_cotizacion", sql.Int, id_cotizacion)
-            .input("id_servicio", sql.Int, servicio.id_servicio)
-            .input("precio", sql.Decimal(12, 2), servicio.precio)
-            .input("cantidad", sql.Int, servicio.cantidad)
-            .query(`
-            INSERT INTO Detalle_cotizacion (FK_id_cotizacion, FK_id_servicio, Precio, Cantidad)
-            VALUES (@id_cotizacion, @id_servicio, @precio, @cantidad)
-            `);
-        }
-
-        res.status(201).json({ mensaje: "Cotización creada exitosamente", id: id_cotizacion });
-
-    } catch (error) {
-        console.error("ERROR crear cotización:", error);
-        res.status(500).json({ error: "Error al crear cotización" });
+    for (const sv of servicios) {
+      await tx.detalleCotizacion.create({
+        data: {
+          cotizacionId: Number(id),
+          servicioId:   Number(sv.id_servicio || sv.serviceId),
+          precio:       sv.precio || sv.price,
+          cantidad:     sv.cantidad || sv.quantity,
+        },
+      });
     }
-    });
+  });
+};
 
+const updateEstado = async (id, status) => {
+  const estado = ESTADO_MAP[status] ?? status;
+  return prisma.cotizacion.update({
+    where: { id: Number(id) },
+    data:  { estado },
+  });
+};
 
-    // ==========================================
-    // PUT → ACTUALIZAR ESTADO DE COTIZACIÓN
-    // ==========================================
-    router.put("/:id/estado", verificarToken, async (req, res) => {
-    try {
-        const { estado } = req.body; // estado en formato frontend (pending, approved, etc.)
-        const estadoBD = ESTADO_MAP[estado] || estado;
-
-        const connection = await pool;
-
-        const result = await connection.request()
-        .input("id", sql.Int, req.params.id)
-        .input("estado", sql.VarChar(30), estadoBD)
-        .query(`
-            UPDATE Cotizacion_encabezado
-            SET Estado = @estado
-            OUTPUT INSERTED.*
-            WHERE PK_id_cotizacion = @id
-        `);
-
-        if (result.recordset.length === 0) {
-        return res.status(404).json({ error: "Cotización no encontrada" });
-        }
-
-        res.json({ mensaje: "Estado actualizado", data: result.recordset[0] });
-
-    } catch (error) {
-        console.error("ERROR actualizar estado:", error);
-        res.status(500).json({ error: "Error al actualizar estado" });
-    }
-    });
-
-
-    // ==========================================
-    // PUT → ACTUALIZAR COTIZACIÓN COMPLETA
-    // ==========================================
-    router.put("/:id", verificarToken, async (req, res) => {
-    try {
-        const {
-        id_cliente,
-        fecha,
-        hora_inicio,
-        notas,
-        descuento = 0,
-        servicios,
-        } = req.body;
-
-        const connection = await pool;
-
-        const subtotal = servicios.reduce((sum, s) => sum + (s.precio * s.cantidad), 0);
-        const iva = subtotal * 0.19;
-        const total = subtotal + iva - descuento;
-
-        await connection.request()
-        .input("id", sql.Int, req.params.id)
-        .input("id_cliente", sql.Int, id_cliente)
-        .input("fecha", sql.Date, fecha)
-        .input("hora_inicio", sql.VarChar(10), hora_inicio || null)
-        .input("subtotal", sql.Decimal(12, 2), subtotal)
-        .input("iva", sql.Decimal(12, 2), iva)
-        .input("valor", sql.Decimal(12, 2), subtotal)
-        .input("descuento", sql.Decimal(12, 2), descuento)
-        .input("total", sql.Decimal(12, 2), total)
-        .input("notas", sql.VarChar(500), notas || null)
-        .query(`
-            UPDATE Cotizacion_encabezado
-            SET FK_id_cliente = @id_cliente, Fecha = @fecha, Hora_inicio = @hora_inicio,
-                Subtotal = @subtotal, Iva = @iva, Valor = @valor,
-                Descuento = @descuento, TOTAL = @total, Notas = @notas
-            WHERE PK_id_cotizacion = @id
-        `);
-
-        // Eliminar detalles anteriores y reinsertar
-        await connection.request()
-        .input("id", sql.Int, req.params.id)
-        .query(`DELETE FROM Detalle_cotizacion WHERE FK_id_cotizacion = @id`);
-
-        for (const servicio of servicios) {
-        await connection.request()
-            .input("id_cotizacion", sql.Int, req.params.id)
-            .input("id_servicio", sql.Int, servicio.id_servicio || servicio.serviceId)
-            .input("precio", sql.Decimal(12, 2), servicio.precio || servicio.price)
-            .input("cantidad", sql.Int, servicio.cantidad || servicio.quantity)
-            .query(`
-            INSERT INTO Detalle_cotizacion (FK_id_cotizacion, FK_id_servicio, Precio, Cantidad)
-            VALUES (@id_cotizacion, @id_servicio, @precio, @cantidad)
-            `);
-        }
-
-        res.json({ mensaje: "Cotización actualizada exitosamente" });
-
-    } catch (error) {
-        console.error("ERROR actualizar cotización:", error);
-        res.status(500).json({ error: "Error al actualizar cotización" });
-    }
-    });
-
-module.exports = router;
+module.exports = { getAll, getById, create, update, updateEstado };
