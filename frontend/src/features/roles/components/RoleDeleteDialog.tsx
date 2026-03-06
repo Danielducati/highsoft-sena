@@ -1,15 +1,15 @@
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "../../../shared/ui/alert-dialog";
 import { AlertCircle } from "lucide-react";
 
-interface RoleDeleteDialogProps {
-  open: boolean;
-  onOpenChange: (v: boolean) => void;
+interface Props {
+  open:     boolean;
+  onClose:  () => void;
   onConfirm: () => void;
 }
 
-export function RoleDeleteDialog({ open, onOpenChange, onConfirm }: RoleDeleteDialogProps) {
+export function RoleDeleteDialog({ open, onClose, onConfirm }: Props) {
   return (
-    <AlertDialog open={open} onOpenChange={onOpenChange}>
+    <AlertDialog open={open} onOpenChange={onClose}>
       <AlertDialogContent>
         <AlertDialogHeader>
           <AlertDialogTitle className="flex items-center gap-2">

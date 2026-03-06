@@ -1,26 +1,105 @@
-const express = require("express");
-const router = express.Router();
-const { pool } = require("../config/db");
+// src/models/roles.js
+const prisma = require("../config/prisma");
 
-router.get("/", async (req, res) => {
-try {
-    const connection = await pool;
-
-    const result = await connection.request().query(`
-    SELECT 
-        PK_id_rol,
-        Nombre,
-        Estado
-    FROM Roles
-    ORDER BY Nombre
-    `);
-
-    res.json(result.recordset);
-
-} catch (error) {
-    console.error("ERROR roles:", error);
-    res.status(500).json({ error: "Error al obtener roles" });
+// ── Helpers ───────────────────────────────────────────────────
+function formatRol(rol) {
+return {
+    id:          rol.id,
+    nombre:      rol.nombre,
+    descripcion: rol.descripcion ?? "",
+    estado:      rol.estado,
+    isActive:    rol.estado === "Activo",
+    permisos:    rol.rolesPermisos?.map(rp => ({
+    id:     rp.permiso.id,
+    nombre: rp.permiso.nombre,
+    })) ?? [],
+};
 }
-});
 
-module.exports = router;
+// ── Queries ───────────────────────────────────────────────────
+const getAll = async ({ soloActivos = false } = {}) => {
+const roles = await prisma.rol.findMany({
+    where:   soloActivos ? { estado: "Activo" } : {},
+    include: { rolesPermisos: { include: { permiso: true } } },
+    orderBy: { nombre: "asc" },
+});
+return roles.map(formatRol);
+};
+
+const getById = async (id) => {
+const rol = await prisma.rol.findUnique({
+    where:   { id: Number(id) },
+    include: { rolesPermisos: { include: { permiso: true } } },
+});
+return rol ? formatRol(rol) : null;
+};
+
+const create = async ({ nombre, descripcion, permisosIds = [] }) => {
+const rol = await prisma.rol.create({
+    data: {
+    nombre,
+    descripcion:   descripcion ?? null,
+    estado:        "Activo",
+    rolesPermisos: {
+        create: permisosIds.map(id => ({
+        permiso: { connect: { id: Number(id) } },
+        })),
+    },
+    },
+    include: { rolesPermisos: { include: { permiso: true } } },
+});
+return formatRol(rol);
+};
+
+const update = async (id, { nombre, descripcion, estado, permisosIds }) => {
+// Si vienen permisos, reemplazarlos todos
+if (permisosIds) {
+    await prisma.rolPermiso.deleteMany({ where: { rolId: Number(id) } });
+}
+
+const rol = await prisma.rol.update({
+    where: { id: Number(id) },
+    data: {
+    nombre,
+    descripcion: descripcion ?? null,
+    estado:      estado      ?? "Activo",
+    ...(permisosIds && {
+        rolesPermisos: {
+        create: permisosIds.map(pid => ({
+            permiso: { connect: { id: Number(pid) } },
+        })),
+        },
+    }),
+    },
+    include: { rolesPermisos: { include: { permiso: true } } },
+});
+return formatRol(rol);
+};
+
+const deactivate = async (id) => {
+return prisma.rol.update({
+    where: { id: Number(id) },
+    data:  { estado: "Inactivo" },
+});
+};
+
+const countUsuarios = async (id) => {
+return prisma.usuario.count({ where: { rolId: Number(id) } });
+};
+
+const getAllPermisos = async () => {
+return prisma.permiso.findMany({ orderBy: { nombre: "asc" } });
+};
+
+const getPermisosByRol = async (id) => {
+const items = await prisma.rolPermiso.findMany({
+    where:   { rolId: Number(id) },
+    include: { permiso: true },
+});
+return items.map(rp => ({ id: rp.permiso.id, nombre: rp.permiso.nombre }));
+};
+
+module.exports = {
+getAll, getById, create, update, deactivate,
+countUsuarios, getAllPermisos, getPermisosByRol,
+};

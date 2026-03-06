@@ -1,47 +1,64 @@
 // src/models/categories.js
 const prisma = require("../config/prisma");
 
-function formatCategoria(c) {
+// ── Helpers ───────────────────────────────────────────────────
+function formatCategoria(cat) {
 return {
-    id:          c.id,
-    Nombre:      c.nombre,
-    descripcion: c.descripcion ?? "",
-    color:       c.color       ?? "",
-    Estado:      c.estado      ?? "Activo",
+    id:          cat.id,
+    nombre:      cat.nombre,
+    descripcion: cat.descripcion ?? "",
+    color:       cat.color       ?? "",
+    estado:      cat.estado,
+    isActive:    cat.estado === "Activo",
 };
 }
 
-const getAll = async () => {
-const data = await prisma.categoriaServicio.findMany({ orderBy: { nombre: "asc" } });
-return data.map(formatCategoria);
+// ── Queries ───────────────────────────────────────────────────
+const getAll = async ({ soloActivos = false } = {}) => {
+const categorias = await prisma.categoriaServicio.findMany({
+    where:   soloActivos ? { estado: "Activo" } : {},
+    orderBy: { nombre: "asc" },
+});
+return categorias.map(formatCategoria);
 };
 
 const getById = async (id) => {
-const c = await prisma.categoriaServicio.findUnique({ where: { id: Number(id) } });
-return c ? formatCategoria(c) : null;
-};
-
-const create = async ({ Nombre, descripcion, color, Estado = "Activo" }) => {
-const c = await prisma.categoriaServicio.create({
-    data: { nombre: Nombre, descripcion, color, estado: Estado },
-});
-return formatCategoria(c);
-};
-
-const update = async (id, { Nombre, descripcion, color, Estado }) => {
-const c = await prisma.categoriaServicio.update({
+const cat = await prisma.categoriaServicio.findUnique({
     where: { id: Number(id) },
-    data:  { nombre: Nombre, descripcion, color, estado: Estado },
 });
-return formatCategoria(c);
+return cat ? formatCategoria(cat) : null;
+};
+
+const create = async ({ nombre, descripcion, color }) => {
+const cat = await prisma.categoriaServicio.create({
+    data: {
+    nombre,
+    descripcion: descripcion ?? null,
+    color:       color       ?? null,
+    estado:      "Activo",
+    },
+});
+return formatCategoria(cat);
+};
+
+const update = async (id, { nombre, descripcion, color, estado }) => {
+const cat = await prisma.categoriaServicio.update({
+    where: { id: Number(id) },
+    data: {
+    nombre,
+    descripcion: descripcion ?? null,
+    color:       color       ?? null,
+    estado:      estado      ?? "Activo",
+    },
+});
+return formatCategoria(cat);
 };
 
 const deactivate = async (id) => {
-const c = await prisma.categoriaServicio.update({
+return prisma.categoriaServicio.update({
     where: { id: Number(id) },
     data:  { estado: "Inactivo" },
 });
-return formatCategoria(c);
 };
 
 module.exports = { getAll, getById, create, update, deactivate };

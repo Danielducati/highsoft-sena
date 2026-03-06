@@ -1,25 +1,14 @@
 export interface Permission {
   id: string;
-  name: string;
+  nombre: string;
   category: string;
 }
 
 export interface Role {
   id: number;
-  name: string;
-  description: string;
-  permissions: string[];
+  nombre: string;
+  descripcion: string;
+  permisos: Permission[];
   isActive: boolean;
-  createdAt: string;
-  usersCount: number;
-}
-
-export interface RoleFormData {
-  name: string;
-  description: string;
-  permissions: string[];
-}
-
-export interface RolesModuleProps {
-  userRole: "admin" | "employee" | "client";
+  estado: string;
 }

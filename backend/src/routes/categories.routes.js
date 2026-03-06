@@ -1,11 +1,15 @@
 const express = require("express");
 const router  = express.Router();
-const ctrl    = require("../controllers/categories.controller");
+const {
+getAllCategories, getCategoryById,
+createCategory, updateCategory, deactivateCategory,
+} = require("../controllers/categories.controller");
+const { verificarToken, soloAdmin } = require("../middlewares/auth.middleware");
 
-router.get("/",    ctrl.getAll);
-router.get("/:id", ctrl.getOne);
-router.post("/",   ctrl.create);
-router.put("/:id", ctrl.update);
-router.delete("/:id", ctrl.remove);
+router.get("/",        verificarToken,            getAllCategories);
+router.get("/:id",     verificarToken,            getCategoryById);
+router.post("/",       verificarToken, soloAdmin, createCategory);
+router.put("/:id",     verificarToken, soloAdmin, updateCategory);
+router.delete("/:id",  verificarToken, soloAdmin, deactivateCategory);
 
 module.exports = router;

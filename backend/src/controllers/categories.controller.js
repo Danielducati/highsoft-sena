@@ -1,39 +1,68 @@
-const model = require("../models/categories");
+const categoriesModel = require("../models/categories");
 
-const getAll = async (req, res) => {
-try { res.json(await model.getAll()); }
-catch (err) { res.status(500).json({ error: err.message }); }
-};
-
-const getOne = async (req, res) => {
+const getAllCategories = async (req, res) => {
 try {
-    const data = await model.getById(req.params.id);
-    if (!data) return res.status(404).json({ error: "Categoría no encontrada" });
-    res.json(data);
-} catch (err) { res.status(500).json({ error: err.message }); }
+    const soloActivos = req.query.all !== "true";
+    res.json(await categoriesModel.getAll({ soloActivos }));
+} catch (err) {
+    console.error("Error GET /categories:", err);
+    res.status(500).json({ error: "Error al obtener categorías" });
+}
 };
 
-const create = async (req, res) => {
-const { Nombre } = req.body;
-if (!Nombre) return res.status(400).json({ error: "El nombre es obligatorio" });
+const getCategoryById = async (req, res) => {
 try {
-    const data = await model.create(req.body);
-    res.status(201).json(data);
-} catch (err) { res.status(500).json({ error: err.message }); }
+    const cat = await categoriesModel.getById(req.params.id);
+    if (!cat) return res.status(404).json({ error: "Categoría no encontrada" });
+    res.json(cat);
+} catch (err) {
+    console.error("Error GET /categories/:id:", err);
+    res.status(500).json({ error: "Error al obtener la categoría" });
+}
 };
 
-const update = async (req, res) => {
+const createCategory = async (req, res) => {
 try {
-    const data = await model.update(req.params.id, req.body);
-    res.json(data);
-} catch (err) { res.status(500).json({ error: err.message }); }
+    const { nombre, descripcion, color } = req.body;
+    if (!nombre) return res.status(400).json({ error: "El nombre es obligatorio" });
+
+    const cat = await categoriesModel.create({ nombre, descripcion, color });
+    res.status(201).json(cat);
+} catch (err) {
+    console.error("Error POST /categories:", err);
+    res.status(500).json({ error: "Error al crear la categoría" });
+}
 };
 
-const remove = async (req, res) => {
+const updateCategory = async (req, res) => {
 try {
-    const data = await model.deactivate(req.params.id);
-    res.json({ mensaje: "Categoría desactivada correctamente", data });
-} catch (err) { res.status(500).json({ error: err.message }); }
+    const { nombre, descripcion, color, estado } = req.body;
+    if (!nombre) return res.status(400).json({ error: "El nombre es obligatorio" });
+
+    const cat = await categoriesModel.update(req.params.id, { nombre, descripcion, color, estado });
+    if (!cat) return res.status(404).json({ error: "Categoría no encontrada" });
+    res.json(cat);
+} catch (err) {
+    if (err.code === "P2025")
+    return res.status(404).json({ error: "Categoría no encontrada" });
+    console.error("Error PUT /categories/:id:", err);
+    res.status(500).json({ error: "Error al actualizar la categoría" });
+}
 };
 
-module.exports = { getAll, getOne, create, update, remove };
+const deactivateCategory = async (req, res) => {
+try {
+    await categoriesModel.deactivate(req.params.id);
+    res.json({ mensaje: "Categoría desactivada correctamente" });
+} catch (err) {
+    if (err.code === "P2025")
+    return res.status(404).json({ error: "Categoría no encontrada" });
+    console.error("Error DELETE /categories/:id:", err);
+    res.status(500).json({ error: "Error al desactivar la categoría" });
+}
+};
+
+module.exports = {
+getAllCategories, getCategoryById,
+createCategory, updateCategory, deactivateCategory,
+};
