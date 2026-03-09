@@ -32,23 +32,76 @@ const getAll = async (req, res) => {
 
 const create = async (req, res) => {
   try {
-    const { employeeId, type, date, fechaFinal, startTime, endTime, description } = req.body;
+    const { employeeId, type, date, fechaFinal, startTime, endTime, description, cancelAppointments } = req.body;
 
     if (!employeeId || !date || !description)
       return res.status(400).json({ error: "empleado, fecha y descripción son requeridos" });
 
+    const fechaInicio = new Date(date);
+    const fechaFin    = fechaFinal ? new Date(fechaFinal) : fechaInicio;
+
+    // ── Buscar citas del empleado en el rango de fechas ──────────────────────
+    // Solo buscamos citas Pendientes o Confirmadas — las ya canceladas/completadas no importan
+    const citasConflicto = await prisma.agendamientoDetalle.findMany({
+      where: {
+        empleadoId: Number(employeeId),
+        cita: {
+          fecha:  { gte: fechaInicio, lte: fechaFin },
+          estado: { in: ["Pendiente", "Confirmada"] },
+        },
+      },
+      include: {
+        cita: {
+          include: { cliente: true },
+        },
+        servicio: true,
+      },
+    });
+
+    // ── Si hay conflictos y el frontend no decidió qué hacer ─────────────────
+    // cancelAppointments puede ser: undefined (primera llamada), true, o false
+    if (citasConflicto.length > 0 && cancelAppointments === undefined) {
+      const citas = citasConflicto.map(d => ({
+        citaId:        d.citaId,
+        clienteNombre: d.cita.cliente
+          ? `${d.cita.cliente.nombre} ${d.cita.cliente.apellido}`
+          : "Sin cliente",
+        fecha:         d.cita.fecha.toISOString().split("T")[0],
+        hora:          d.cita.horario?.toISOString().slice(11, 16) ?? "—",
+        servicio:      d.servicio?.nombre ?? "Servicio",
+      }));
+
+      // 409 Conflict — hay citas, el frontend decide qué hacer
+      return res.status(409).json({
+        conflict: true,
+        message:  `El empleado tiene ${citas.length} cita(s) en ese período`,
+        citas,
+      });
+    }
+
+    // ── Si el frontend eligió cancelar las citas ─────────────────────────────
+    if (cancelAppointments === true && citasConflicto.length > 0) {
+      const citaIds = [...new Set(citasConflicto.map(d => d.citaId))];
+      await prisma.agendamientoCita.updateMany({
+        where: { id: { in: citaIds } },
+        data:  { estado: "Cancelada" },
+      });
+    }
+    // Si cancelAppointments === false → simplemente no cancela nada y sigue
+
+    // ── Crear o reutilizar horario ────────────────────────────────────────────
     let horario = await prisma.horario.findFirst({
-      where: { empleadoId: Number(employeeId), fecha: new Date(date) },
+      where: { empleadoId: Number(employeeId), fecha: fechaInicio },
     });
 
     if (!horario) {
       horario = await prisma.horario.create({
         data: {
           empleadoId: Number(employeeId),
-          fecha:      new Date(date),
+          fecha:      fechaInicio,
           horaInicio: new Date(`1970-01-01T${startTime || "08:00"}:00`),
           horaFinal:  new Date(`1970-01-01T${endTime   || "17:00"}:00`),
-          diaSemana:  new Date(date).toLocaleDateString("es-ES", { weekday: "long" }),
+          diaSemana:  fechaInicio.toLocaleDateString("es-ES", { weekday: "long" }),
         },
       });
     }
@@ -58,7 +111,7 @@ const create = async (req, res) => {
         horarioId:   horario.id,
         tipoNovedad: type        ?? "otro",
         descripcion: description,
-        fechaInicio: new Date(date),
+        fechaInicio,
         fechaFinal:  fechaFinal  ? new Date(fechaFinal) : null,
         horaInicio:  startTime   ? new Date(`1970-01-01T${startTime}:00`) : null,
         horaFinal:   endTime     ? new Date(`1970-01-01T${endTime}:00`)   : null,

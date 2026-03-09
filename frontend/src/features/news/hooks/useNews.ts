@@ -1,12 +1,17 @@
+// news/hooks/useNews.ts
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { newsApi } from "../services/newsApi";
+import { newsApi, ConflictResponse } from "../services/newsApi";
 import { Employee, EmployeeNews, NewsFormData } from "../types";
 
 export function useNews() {
 const [employees, setEmployees] = useState<Employee[]>([]);
 const [newsList,  setNewsList]  = useState<EmployeeNews[]>([]);
 const [loading,   setLoading]   = useState(true);
+
+// ── Estado del conflicto de citas ────────────────────────────────────────
+const [conflict,        setConflict]        = useState<ConflictResponse | null>(null);
+const [pendingFormData, setPendingFormData] = useState<NewsFormData | null>(null);
 
 useEffect(() => {
     async function fetchAll() {
@@ -40,15 +45,78 @@ const createOrUpdate = async (formData: NewsFormData, editingId?: number): Promi
     if (editingId) {
         await newsApi.update(editingId, formData);
         toast.success("Novedad actualizada");
-    } else {
-        await newsApi.create(formData);
-        toast.success("Novedad creada");
+        await reload();
+        return true;
     }
+
+    // Primer intento — sin decisión sobre citas
+    const result = await newsApi.create(formData);
+
+    // ── Hay conflicto de citas ─────────────────────────────────────────
+    if ("conflict" in result) {
+        setPendingFormData(formData); // guardamos el form para reusarlo
+        setConflict(result);          // abrimos el modal
+        return false;                 // no cerramos el form todavía
+    }
+
+    toast.success("Novedad creada");
     await reload();
     return true;
     } catch (err: any) {
     toast.error(err.message ?? "Error al guardar");
     return false;
+    }
+};
+
+// Llamado cuando el usuario decide desde el modal de conflicto
+const resolveConflict = async (cancelAppointments: boolean): Promise<boolean> => {
+    if (!pendingFormData) return false;
+    try {
+    const result = await newsApi.create(pendingFormData, cancelAppointments);
+
+    if ("conflict" in result) {
+        // No debería pasar, pero por seguridad
+        toast.error("Error inesperado al resolver conflicto");
+        return false;
+    }
+
+    toast.success(
+        cancelAppointments
+        ? "Novedad creada y citas canceladas"
+        : "Novedad creada — las citas se mantienen"
+    );
+    setConflict(null);
+    setPendingFormData(null);
+    await reload();
+    return true;
+    } catch (err: any) {
+    toast.error(err.message ?? "Error al guardar");
+    return false;
+    }
+};
+
+const dismissConflict = () => {
+    setConflict(null);
+    setPendingFormData(null);
+};
+
+// Cambia el empleado y reintenta — puede volver a dar conflicto con el nuevo empleado
+const changeEmployee = async (newEmployeeId: string): Promise<void> => {
+    if (!pendingFormData) return;
+    const updatedForm = { ...pendingFormData, employeeId: newEmployeeId };
+    setPendingFormData(updatedForm);
+    setConflict(null);
+    try {
+    const result = await newsApi.create(updatedForm);
+    if ("conflict" in result) {
+        setConflict(result); // nuevo empleado también tiene conflictos
+        return;
+    }
+    toast.success("Novedad creada con el nuevo empleado");
+    setPendingFormData(null);
+    await reload();
+    } catch (err: any) {
+    toast.error(err.message ?? "Error al guardar");
     }
 };
 
@@ -76,5 +144,10 @@ const updateStatus = async (id: number, status: EmployeeNews["status"]): Promise
     }
 };
 
-return { employees, newsList, loading, createOrUpdate, remove, updateStatus };
+return {
+    employees, newsList, loading,
+    createOrUpdate, remove, updateStatus,
+    // Conflicto
+    conflict, resolveConflict, dismissConflict, changeEmployee,
+};
 }

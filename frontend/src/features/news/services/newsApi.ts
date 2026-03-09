@@ -1,65 +1,89 @@
-import { API_BASE } from "../constants";
-import { Employee, EmployeeNews, NewsFormData } from "../types";
+// news/services/newsApi.ts
+const API = "http://localhost:3001";
+
+const authHeaders = () => ({
+"Content-Type": "application/json",
+Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
+});
+
+// Respuesta cuando hay conflicto de citas
+export interface ConflictResponse {
+conflict: true;
+message:  string;
+citas: {
+    citaId:        number;
+    clienteNombre: string;
+    fecha:         string;
+    hora:          string;
+    servicio:      string;
+}[];
+}
 
 export const newsApi = {
-async getEmployees(): Promise<Employee[]> {
-    const res = await fetch(`${API_BASE}/employees`);
-    if (!res.ok) throw new Error("Error al cargar empleados");
-    return res.json();
-},
 
-async getAll(): Promise<EmployeeNews[]> {
-    const res = await fetch(`${API_BASE}/news`);
+getAll: async () => {
+    const res = await fetch(`${API}/news`, { headers: authHeaders() });
     if (!res.ok) throw new Error("Error al cargar novedades");
     return res.json();
 },
 
-async create(data: Omit<NewsFormData, "employeeName">): Promise<void> {
-    const res = await fetch(`${API_BASE}/news`, {
+getEmployees: async () => {
+    const res = await fetch(`${API}/employees`, { headers: authHeaders() });
+    if (!res.ok) throw new Error("Error al cargar empleados");
+    const data = await res.json();
+    return data.map((e: any) => ({
+    id:        e.id ?? e.PK_id_empleado,
+    name:      `${e.nombre} ${e.apellido}`,
+    specialty: e.especialidad ?? "",
+    }));
+},
+
+// Crear novedad — puede devolver ConflictResponse si hay citas en el período
+create: async (formData: any, cancelAppointments?: boolean): Promise<{ ok: boolean } | ConflictResponse> => {
+    const res = await fetch(`${API}/news`, {
     method:  "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders(),
     body:    JSON.stringify({
-        employeeId:  data.employeeId,
-        type:        data.type,
-        date:        data.date,
-        fechaFinal:  data.fechaFinal  || null,
-        startTime:   data.startTime   || null,
-        endTime:     data.endTime     || null,
-        description: data.description,
-        status:      data.status,
+        ...formData,
+        // Solo incluye cancelAppointments si el usuario ya tomó una decisión
+        ...(cancelAppointments !== undefined && { cancelAppointments }),
     }),
     });
-    if (!res.ok) throw new Error((await res.json()).error ?? "Error al crear");
+
+    const data = await res.json();
+
+    // 409 = hay conflicto de citas, no es un error — es una respuesta válida
+    if (res.status === 409) return data as ConflictResponse;
+    if (!res.ok) throw new Error(data.error ?? "Error al crear novedad");
+    return data;
 },
 
-async update(id: number, data: Omit<NewsFormData, "employeeName">): Promise<void> {
-    const res = await fetch(`${API_BASE}/news/${id}`, {
+update: async (id: number, formData: any) => {
+    const res = await fetch(`${API}/news/${id}`, {
     method:  "PUT",
-    headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify({
-        type:        data.type,
-        date:        data.date,
-        fechaFinal:  data.fechaFinal  || null,
-        startTime:   data.startTime   || null,
-        endTime:     data.endTime     || null,
-        description: data.description,
-        status:      data.status,
-    }),
+    headers: authHeaders(),
+    body:    JSON.stringify(formData),
     });
-    if (!res.ok) throw new Error((await res.json()).error ?? "Error al actualizar");
+    if (!res.ok) throw new Error("Error al actualizar novedad");
+    return res.json();
 },
 
-async updateStatus(id: number, status: EmployeeNews["status"]): Promise<void> {
-    const res = await fetch(`${API_BASE}/news/${id}/status`, {
+updateStatus: async (id: number, status: string) => {
+    const res = await fetch(`${API}/news/${id}/status`, {
     method:  "PATCH",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders(),
     body:    JSON.stringify({ status }),
     });
     if (!res.ok) throw new Error("Error al actualizar estado");
+    return res.json();
 },
 
-async remove(id: number): Promise<void> {
-    const res = await fetch(`${API_BASE}/news/${id}`, { method: "DELETE" });
-    if (!res.ok) throw new Error("Error al eliminar");
+remove: async (id: number) => {
+    const res = await fetch(`${API}/news/${id}`, {
+    method:  "DELETE",
+    headers: authHeaders(),
+    });
+    if (!res.ok) throw new Error("Error al eliminar novedad");
+    return res.json();
 },
 };

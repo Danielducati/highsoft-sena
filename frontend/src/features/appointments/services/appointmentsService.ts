@@ -2,32 +2,38 @@ import { API_BASE } from "../constants";
 import { Appointment } from "../types";
 import { mapApiToAppointment } from "../utils";
 
+// Helper — siempre lee el token fresco del localStorage
+const authHeaders = () => ({
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
+});
+
 export async function fetchAppointments(): Promise<Appointment[]> {
-  const res = await fetch(`${API_BASE}/appointments`);
+  const res  = await fetch(`${API_BASE}/appointments`, { headers: authHeaders() });
   const data = await res.json();
   return data.map(mapApiToAppointment);
 }
 
 export async function fetchServices() {
-  const res = await fetch(`${API_BASE}/services`);
+  const res = await fetch(`${API_BASE}/services`, { headers: authHeaders() });
   return res.json();
 }
 
 export async function fetchEmployees() {
-  const res = await fetch(`${API_BASE}/employees`);
+  const res = await fetch(`${API_BASE}/employees`, { headers: authHeaders() });
   return res.json();
 }
 
 export async function fetchClients() {
-  const res = await fetch(`${API_BASE}/clients`);
+  const res = await fetch(`${API_BASE}/clients`, { headers: authHeaders() });
   return res.json();
 }
 
 export async function createAppointment(payload: any) {
   const res = await fetch(`${API_BASE}/appointments`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    method:  "POST",
+    headers: authHeaders(),
+    body:    JSON.stringify(payload),
   });
   if (!res.ok) {
     const err = await res.json();
@@ -38,9 +44,9 @@ export async function createAppointment(payload: any) {
 
 export async function updateAppointment(id: number, payload: any) {
   const res = await fetch(`${API_BASE}/appointments/${id}`, {
-    method: "PUT",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(payload),
+    method:  "PUT",
+    headers: authHeaders(),
+    body:    JSON.stringify(payload),
   });
   if (!res.ok) {
     const err = await res.json();
@@ -50,22 +56,28 @@ export async function updateAppointment(id: number, payload: any) {
 }
 
 export async function deleteAppointment(id: number) {
-  const res = await fetch(`${API_BASE}/appointments/${id}`, { method: "DELETE" });
+  const res = await fetch(`${API_BASE}/appointments/${id}`, {
+    method:  "DELETE",
+    headers: authHeaders(),
+  });
   if (!res.ok) throw new Error("Error al eliminar cita");
   return res.json();
 }
 
 export async function cancelAppointment(id: number) {
-  const res = await fetch(`${API_BASE}/appointments/${id}/cancel`, { method: "PATCH" });
+  const res = await fetch(`${API_BASE}/appointments/${id}/cancel`, {
+    method:  "PATCH",
+    headers: authHeaders(),
+  });
   if (!res.ok) throw new Error("Error al cancelar cita");
   return res.json();
 }
 
 export async function updateAppointmentStatus(id: number, status: Appointment["status"]) {
   const res = await fetch(`${API_BASE}/appointments/${id}/status`, {
-    method: "PATCH",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ status }),
+    method:  "PATCH",
+    headers: authHeaders(),
+    body:    JSON.stringify({ status }),
   });
   if (!res.ok) throw new Error("Error al actualizar estado");
   return res.json();
