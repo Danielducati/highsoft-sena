@@ -32,7 +32,7 @@ const getAll = async (req, res) => {
 
 const create = async (req, res) => {
   try {
-    const { employeeId, type, date, fechaFinal, startTime, endTime, description, cancelAppointments } = req.body;
+    const { employeeId, type, date, fechaFinal, startTime, endTime, description, action, reassignToEmployeeId } = req.body;
 
     if (!employeeId || !date || !description)
       return res.status(400).json({ error: "empleado, fecha y descripción son requeridos" });
@@ -59,9 +59,10 @@ const create = async (req, res) => {
     });
 
     // ── Si hay conflictos y el frontend no decidió qué hacer ─────────────────
-    // cancelAppointments puede ser: undefined (primera llamada), true, o false
-    if (citasConflicto.length > 0 && cancelAppointments === undefined) {
-      const citas = citasConflicto.map(d => ({
+    // action puede ser: undefined (primera llamada), "cancel", "keep", o "reassign"
+    if (citasConflicto.length > 0 && action === undefined) {
+      const servicios = citasConflicto.map(d => ({
+        detalleId:     d.id,
         citaId:        d.citaId,
         clienteNombre: d.cita.cliente
           ? `${d.cita.cliente.nombre} ${d.cita.cliente.apellido}`
@@ -71,23 +72,33 @@ const create = async (req, res) => {
         servicio:      d.servicio?.nombre ?? "Servicio",
       }));
 
-      // 409 Conflict — hay citas, el frontend decide qué hacer
+      // 409 Conflict — hay servicios asignados al empleado, el frontend decide
       return res.status(409).json({
-        conflict: true,
-        message:  `El empleado tiene ${citas.length} cita(s) en ese período`,
-        citas,
+        conflict:  true,
+        message:   `El empleado tiene ${servicios.length} servicio(s) asignado(s) en ese período`,
+        servicios,
       });
     }
 
-    // ── Si el frontend eligió cancelar las citas ─────────────────────────────
-    if (cancelAppointments === true && citasConflicto.length > 0) {
-      const citaIds = [...new Set(citasConflicto.map(d => d.citaId))];
-      await prisma.agendamientoCita.updateMany({
-        where: { id: { in: citaIds } },
-        data:  { estado: "Cancelada" },
-      });
+    // ── Acciones sobre los servicios en conflicto ────────────────────────────
+    if (citasConflicto.length > 0) {
+      if (action === "cancel") {
+        // Cancelar las citas completas
+        const citaIds = [...new Set(citasConflicto.map(d => d.citaId))];
+        await prisma.agendamientoCita.updateMany({
+          where: { id: { in: citaIds } },
+          data:  { estado: "Cancelada" },
+        });
+      } else if (action === "reassign" && reassignToEmployeeId) {
+        // Reasignar solo los detalles del empleado con novedad al nuevo empleado
+        const detalleIds = citasConflicto.map(d => d.id);
+        await prisma.agendamientoDetalle.updateMany({
+          where: { id: { in: detalleIds } },
+          data:  { empleadoId: Number(reassignToEmployeeId) },
+        });
+      }
+      // action === "keep" → no hacer nada, solo crear la novedad
     }
-    // Si cancelAppointments === false → simplemente no cancela nada y sigue
 
     // ── Crear o reutilizar horario ────────────────────────────────────────────
     let horario = await prisma.horario.findFirst({

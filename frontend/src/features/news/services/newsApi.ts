@@ -6,18 +6,28 @@ const authHeaders = () => ({
 Authorization: `Bearer ${localStorage.getItem("token") ?? ""}`,
 });
 
-// Respuesta cuando hay conflicto de citas
-export interface ConflictResponse {
-conflict: true;
-message:  string;
-citas: {
-    citaId:        number;
-    clienteNombre: string;
-    fecha:         string;
-    hora:          string;
-    servicio:      string;
-}[];
+// Servicio en conflicto — un detalle de cita asignado al empleado con novedad
+export interface ConflictService {
+detalleId:     number;
+citaId:        number;
+clienteNombre: string;
+fecha:         string;
+hora:          string;
+servicio:      string;
 }
+
+// Respuesta cuando hay conflicto
+export interface ConflictResponse {
+conflict:  true;
+message:   string;
+servicios: ConflictService[];
+}
+
+// Acción que toma el usuario al resolver el conflicto
+export type ConflictAction =
+| { action: "cancel" }                                    // cancelar las citas
+| { action: "keep" }                                      // no hacer nada
+| { action: "reassign"; reassignToEmployeeId: string };   // reasignar servicios
 
 export const newsApi = {
 
@@ -38,21 +48,23 @@ getEmployees: async () => {
     }));
 },
 
-// Crear novedad — puede devolver ConflictResponse si hay citas en el período
-create: async (formData: any, cancelAppointments?: boolean): Promise<{ ok: boolean } | ConflictResponse> => {
+// Crear novedad
+// - Primera llamada: sin conflictAction → puede devolver ConflictResponse
+// - Segunda llamada: con conflictAction → el usuario ya decidió qué hacer
+create: async (
+    formData: any,
+    conflictAction?: ConflictAction
+): Promise<{ ok: boolean } | ConflictResponse> => {
     const res = await fetch(`${API}/news`, {
     method:  "POST",
     headers: authHeaders(),
     body:    JSON.stringify({
         ...formData,
-        // Solo incluye cancelAppointments si el usuario ya tomó una decisión
-        ...(cancelAppointments !== undefined && { cancelAppointments }),
+        ...conflictAction, // spread: action, y opcionalmente reassignToEmployeeId
     }),
     });
 
     const data = await res.json();
-
-    // 409 = hay conflicto de citas, no es un error — es una respuesta válida
     if (res.status === 409) return data as ConflictResponse;
     if (!res.ok) throw new Error(data.error ?? "Error al crear novedad");
     return data;

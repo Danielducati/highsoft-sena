@@ -17,7 +17,7 @@ import { EmployeeNews, NewsFormData, NewsModuleProps } from "../types";
 
 export function NewsPage({ userRole }: NewsModuleProps) {
   // ← CAMBIO 2: desestructurar conflict, resolveConflict, dismissConflict del hook
-  const { employees, newsList, loading, createOrUpdate, remove, updateStatus, conflict, resolveConflict, dismissConflict, changeEmployee } = useNews();
+  const { employees, newsList, loading, createOrUpdate, remove, updateStatus, conflict, resolveConflict, dismissConflict } = useNews();
 
   const [searchTerm,   setSearchTerm]   = useState("");
   const [filterType,   setFilterType]   = useState("all");
@@ -89,8 +89,8 @@ export function NewsPage({ userRole }: NewsModuleProps) {
   };
 
   // Cuando el usuario resuelve el conflicto, cerramos también el form
-  const handleResolveConflict = async (cancelAppointments: boolean) => {
-    const ok = await resolveConflict(cancelAppointments);
+  const handleResolveConflict = async (action: any) => {
+    const ok = await resolveConflict(action);
     if (ok) resetForm();
   };
 
@@ -231,9 +231,9 @@ export function NewsPage({ userRole }: NewsModuleProps) {
       <NewsConflictDialog
         conflict={conflict}
         employees={employees}
+        currentEmployeeId={formData.employeeId}
         onCancel={dismissConflict}
         onConfirm={handleResolveConflict}
-        onChangeEmployee={changeEmployee}
       />
     </div>
   );

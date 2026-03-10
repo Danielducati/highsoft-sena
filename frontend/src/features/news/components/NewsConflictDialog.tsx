@@ -5,29 +5,34 @@ import { Badge } from "../../../shared/ui/badge";
 import { Button } from "../../../shared/ui/button";
 import { Label } from "../../../shared/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../../../shared/ui/select";
-import { AlertTriangle, CalendarX, CalendarCheck, ArrowLeft, UserRoundCog } from "lucide-react";
-import { ConflictResponse } from "../services/newsApi";
+import { AlertTriangle, CalendarX, CalendarCheck, UserRoundCog, ArrowLeft } from "lucide-react";
+import { ConflictResponse, ConflictAction } from "../services/newsApi";
 import { Employee } from "../types";
 
 interface NewsConflictDialogProps {
   conflict:   ConflictResponse | null;
   employees:  Employee[];
+  currentEmployeeId: string; // para excluirlo del select
   onCancel:   () => void;
-  onConfirm:  (cancelAppointments: boolean) => void;
-  onChangeEmployee: (newEmployeeId: string) => void;
+  onConfirm:  (action: ConflictAction) => void;
 }
 
-export function NewsConflictDialog({ conflict, employees, onCancel, onConfirm, onChangeEmployee }: NewsConflictDialogProps) {
-  const [showEmployeeSelect, setShowEmployeeSelect] = useState(false);
-  const [selectedEmployee,   setSelectedEmployee]   = useState("");
+export function NewsConflictDialog({
+  conflict, employees, currentEmployeeId, onCancel, onConfirm
+}: NewsConflictDialogProps) {
+  const [showReassign,     setShowReassign]     = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState("");
 
   if (!conflict) return null;
 
-  const handleEmployeeConfirm = () => {
+  // Empleados disponibles — excluye al que tiene la novedad
+  const availableEmployees = employees.filter(e => String(e.id) !== currentEmployeeId);
+
+  const handleReassignConfirm = () => {
     if (!selectedEmployee) return;
-    setShowEmployeeSelect(false);
+    onConfirm({ action: "reassign", reassignToEmployeeId: selectedEmployee });
+    setShowReassign(false);
     setSelectedEmployee("");
-    onChangeEmployee(selectedEmployee);
   };
 
   return (
@@ -43,32 +48,34 @@ export function NewsConflictDialog({ conflict, employees, onCancel, onConfirm, o
           </AlertDialogDescription>
         </AlertDialogHeader>
 
-        {/* Lista de citas en conflicto */}
+        {/* Servicios en conflicto */}
         <div className="space-y-2 max-h-48 overflow-y-auto py-2">
-          {conflict.citas.map(cita => (
-            <div key={cita.citaId} className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg">
+          {conflict.servicios.map(s => (
+            <div key={s.detalleId} className="flex items-center justify-between p-3 bg-amber-50 border border-amber-200 rounded-lg">
               <div>
-                <p className="text-sm font-medium text-gray-900">{cita.clienteNombre}</p>
-                <p className="text-xs text-gray-500">{cita.servicio}</p>
+                <p className="text-sm font-medium text-gray-900">{s.clienteNombre}</p>
+                <p className="text-xs text-gray-500">{s.servicio}</p>
               </div>
               <div className="text-right">
-                <Badge className="bg-amber-100 text-amber-700 text-xs">{cita.fecha}</Badge>
-                <p className="text-xs text-gray-500 mt-1">{cita.hora}</p>
+                <Badge className="bg-amber-100 text-amber-700 text-xs">{s.fecha}</Badge>
+                <p className="text-xs text-gray-500 mt-1">{s.hora}</p>
               </div>
             </div>
           ))}
         </div>
 
-        {/* Select de empleado — se muestra solo cuando el usuario elige cambiar */}
-        {showEmployeeSelect && (
-          <div className="space-y-2 p-3 bg-blue-50 border border-blue-200 rounded-lg">
-            <Label className="text-sm text-blue-800">Selecciona el nuevo empleado:</Label>
+        {/* Select de reasignación — aparece al elegir esa opción */}
+        {showReassign && (
+          <div className="space-y-2 p-3 bg-purple-50 border border-purple-200 rounded-lg">
+            <Label className="text-sm text-purple-800">
+              ¿A quién le asignamos estos servicios?
+            </Label>
             <Select value={selectedEmployee} onValueChange={setSelectedEmployee}>
-              <SelectTrigger className="bg-white border-blue-200">
+              <SelectTrigger className="bg-white border-purple-200">
                 <SelectValue placeholder="Elige un empleado..." />
               </SelectTrigger>
               <SelectContent>
-                {employees.map(emp => (
+                {availableEmployees.map(emp => (
                   <SelectItem key={emp.id} value={String(emp.id)}>
                     {emp.name} {emp.specialty && `— ${emp.specialty}`}
                   </SelectItem>
@@ -79,32 +86,41 @@ export function NewsConflictDialog({ conflict, employees, onCancel, onConfirm, o
               <Button
                 size="sm"
                 variant="outline"
-                className="flex-1 border-gray-300"
-                onClick={() => { setShowEmployeeSelect(false); setSelectedEmployee(""); }}
+                className="flex-1"
+                onClick={() => { setShowReassign(false); setSelectedEmployee(""); }}
               >
                 Cancelar
               </Button>
-              <Button
-                size="sm"
-                className={`flex-1 text-white transition-all ${
-                  selectedEmployee
-                    ? "bg-purple-600 hover:bg-purple-700 cursor-pointer"
-                    : "bg-gray-300 cursor-not-allowed"
-                }`}
-                onClick={handleEmployeeConfirm}
+              <button
+                type="button"
+                onClick={handleReassignConfirm}
                 disabled={!selectedEmployee}
+                style={{
+                  flex: 1,
+                  padding: "6px 12px",
+                  borderRadius: "6px",
+                  fontSize: "14px",
+                  fontWeight: 500,
+                  color: selectedEmployee ? "white" : "#6b7280",
+                  backgroundColor: selectedEmployee ? "#9333ea" : "#e5e7eb",
+                  cursor: selectedEmployee ? "pointer" : "not-allowed",
+                  border: selectedEmployee ? "none" : "1px solid #d1d5db",
+                  transition: "background-color 0.2s",
+                }}
+                onMouseEnter={e => { if (selectedEmployee) (e.target as HTMLButtonElement).style.backgroundColor = "#7e22ce"; }}
+                onMouseLeave={e => { if (selectedEmployee) (e.target as HTMLButtonElement).style.backgroundColor = "#9333ea"; }}
               >
-                Confirmar
-              </Button>
+                Confirmar reasignación
+              </button>
             </div>
           </div>
         )}
 
-        {/* Botones de acción */}
+        {/* Botones principales */}
         <div className="flex flex-col gap-2 pt-2 border-t border-gray-100">
           <Button
             className="w-full bg-red-500 hover:bg-red-600 text-white"
-            onClick={() => onConfirm(true)}
+            onClick={() => onConfirm({ action: "cancel" })}
           >
             <CalendarX className="w-4 h-4 mr-1.5" />
             Cancelar citas y registrar novedad
@@ -112,20 +128,20 @@ export function NewsConflictDialog({ conflict, employees, onCancel, onConfirm, o
 
           <Button
             variant="outline"
-            className="w-full border-blue-300 text-blue-700 hover:bg-blue-50"
-            onClick={() => onConfirm(false)}
+            className="w-full border-purple-300 text-purple-700 hover:bg-purple-50"
+            onClick={() => setShowReassign(true)}
           >
-            <CalendarCheck className="w-4 h-4 mr-1.5" />
-            Registrar novedad sin cancelar citas
+            <UserRoundCog className="w-4 h-4 mr-1.5" />
+            Reasignar servicios a otro empleado
           </Button>
 
           <Button
             variant="outline"
-            className="w-full border-purple-300 text-purple-700 hover:bg-purple-50"
-            onClick={() => setShowEmployeeSelect(true)}
+            className="w-full border-blue-300 text-blue-700 hover:bg-blue-50"
+            onClick={() => onConfirm({ action: "keep" })}
           >
-            <UserRoundCog className="w-4 h-4 mr-1.5" />
-            Asignar a otro empleado
+            <CalendarCheck className="w-4 h-4 mr-1.5" />
+            Registrar novedad sin cambiar citas
           </Button>
 
           <Button

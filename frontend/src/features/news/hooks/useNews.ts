@@ -1,7 +1,7 @@
 // news/hooks/useNews.ts
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
-import { newsApi, ConflictResponse } from "../services/newsApi";
+import { newsApi, ConflictResponse, ConflictAction } from "../services/newsApi";
 import { Employee, EmployeeNews, NewsFormData } from "../types";
 
 export function useNews() {
@@ -9,7 +9,7 @@ const [employees, setEmployees] = useState<Employee[]>([]);
 const [newsList,  setNewsList]  = useState<EmployeeNews[]>([]);
 const [loading,   setLoading]   = useState(true);
 
-// ── Estado del conflicto de citas ────────────────────────────────────────
+// Estado del conflicto
 const [conflict,        setConflict]        = useState<ConflictResponse | null>(null);
 const [pendingFormData, setPendingFormData] = useState<NewsFormData | null>(null);
 
@@ -49,14 +49,13 @@ const createOrUpdate = async (formData: NewsFormData, editingId?: number): Promi
         return true;
     }
 
-    // Primer intento — sin decisión sobre citas
+    // Primera llamada — sin acción, detecta conflictos
     const result = await newsApi.create(formData);
 
-    // ── Hay conflicto de citas ─────────────────────────────────────────
     if ("conflict" in result) {
-        setPendingFormData(formData); // guardamos el form para reusarlo
-        setConflict(result);          // abrimos el modal
-        return false;                 // no cerramos el form todavía
+        setPendingFormData(formData);
+        setConflict(result);
+        return false; // mantiene el form abierto
     }
 
     toast.success("Novedad creada");
@@ -68,11 +67,11 @@ const createOrUpdate = async (formData: NewsFormData, editingId?: number): Promi
     }
 };
 
-// Llamado cuando el usuario decide desde el modal de conflicto
-const resolveConflict = async (cancelAppointments: boolean): Promise<boolean> => {
+// El usuario tomó una decisión desde el modal
+const resolveConflict = async (conflictAction: ConflictAction): Promise<boolean> => {
     if (!pendingFormData) return false;
     try {
-    const result = await newsApi.create(pendingFormData, cancelAppointments);
+    const result = await newsApi.create(pendingFormData, conflictAction);
 
     if ("conflict" in result) {
         // No debería pasar, pero por seguridad
@@ -80,11 +79,13 @@ const resolveConflict = async (cancelAppointments: boolean): Promise<boolean> =>
         return false;
     }
 
-    toast.success(
-        cancelAppointments
-        ? "Novedad creada y citas canceladas"
-        : "Novedad creada — las citas se mantienen"
-    );
+    const messages: Record<string, string> = {
+        cancel:   "Novedad creada y citas canceladas",
+        keep:     "Novedad creada — servicios sin cambios",
+        reassign: "Novedad creada y servicios reasignados",
+    };
+    toast.success(messages[conflictAction.action] ?? "Novedad creada");
+
     setConflict(null);
     setPendingFormData(null);
     await reload();
@@ -98,26 +99,6 @@ const resolveConflict = async (cancelAppointments: boolean): Promise<boolean> =>
 const dismissConflict = () => {
     setConflict(null);
     setPendingFormData(null);
-};
-
-// Cambia el empleado y reintenta — puede volver a dar conflicto con el nuevo empleado
-const changeEmployee = async (newEmployeeId: string): Promise<void> => {
-    if (!pendingFormData) return;
-    const updatedForm = { ...pendingFormData, employeeId: newEmployeeId };
-    setPendingFormData(updatedForm);
-    setConflict(null);
-    try {
-    const result = await newsApi.create(updatedForm);
-    if ("conflict" in result) {
-        setConflict(result); // nuevo empleado también tiene conflictos
-        return;
-    }
-    toast.success("Novedad creada con el nuevo empleado");
-    setPendingFormData(null);
-    await reload();
-    } catch (err: any) {
-    toast.error(err.message ?? "Error al guardar");
-    }
 };
 
 const remove = async (id: number): Promise<boolean> => {
@@ -147,7 +128,6 @@ const updateStatus = async (id: number, status: EmployeeNews["status"]): Promise
 return {
     employees, newsList, loading,
     createOrUpdate, remove, updateStatus,
-    // Conflicto
-    conflict, resolveConflict, dismissConflict, changeEmployee,
+    conflict, resolveConflict, dismissConflict,
 };
 }
