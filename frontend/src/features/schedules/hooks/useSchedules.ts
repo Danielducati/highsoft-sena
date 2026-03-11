@@ -1,27 +1,54 @@
-import { useState } from "react";
+// schedules/hooks/useSchedules.ts
+import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { WeeklySchedule, ScheduleFormData, Employee } from "../types";
-import { getMondayOfWeek, getWeekDays } from "../utils";
+import { getMondayOfWeek, getWeekDays, formatDateToISO } from "../utils";
 import { WEEK_DAYS_LABELS } from "../constants";
+import { schedulesApi } from "../services/schedulesApi";
 
-const DEFAULT_WEEK = getMondayOfWeek(new Date(2025, 10, 17));
+const DEFAULT_WEEK = getMondayOfWeek(new Date());
 const EMPTY_FORM: ScheduleFormData = { employeeId: "", daySchedules: [] };
 
-// Lista de empleados — reemplazar con fetch a la API cuando esté disponible
-const EMPLOYEES: Employee[] = [];
-
 export function useSchedules() {
-  const [schedules,       setSchedules]       = useState<WeeklySchedule[]>([]);
-  const [isDialogOpen,    setIsDialogOpen]    = useState(false);
-  const [editingSchedule, setEditingSchedule] = useState<WeeklySchedule | null>(null);
+  const [schedules,        setSchedules]        = useState<WeeklySchedule[]>([]);
+  const [employees,        setEmployees]        = useState<Employee[]>([]);
+  const [loading,          setLoading]          = useState(true);
+  const [isDialogOpen,     setIsDialogOpen]     = useState(false);
+  const [editingSchedule,  setEditingSchedule]  = useState<WeeklySchedule | null>(null);
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
-  const [scheduleToDelete, setScheduleToDelete] = useState<number | null>(null);
-  const [searchTerm,      setSearchTerm]      = useState("");
-  const [filterEmployee,  setFilterEmployee]  = useState("all");
+  const [scheduleToDelete, setScheduleToDelete] = useState<WeeklySchedule | null>(null);
+  const [searchTerm,       setSearchTerm]       = useState("");
+  const [filterEmployee,   setFilterEmployee]   = useState("all");
   const [detailDialogOpen, setDetailDialogOpen] = useState(false);
-  const [viewingSchedule, setViewingSchedule] = useState<WeeklySchedule | null>(null);
-  const [formWeekStart,   setFormWeekStart]   = useState<Date>(DEFAULT_WEEK);
-  const [formData,        setFormData]        = useState<ScheduleFormData>(EMPTY_FORM);
+  const [viewingSchedule,  setViewingSchedule]  = useState<WeeklySchedule | null>(null);
+  const [formWeekStart,    setFormWeekStart]    = useState<Date>(DEFAULT_WEEK);
+  const [formData,         setFormData]         = useState<ScheduleFormData>(EMPTY_FORM);
+
+  // ── Cargar datos al montar ─────────────────────────────────────────────────
+  useEffect(() => {
+    fetchAll();
+  }, []);
+
+  const fetchAll = async () => {
+    try {
+      setLoading(true);
+      const [schedulesData, employeesData] = await Promise.all([
+        schedulesApi.getAll(),
+        schedulesApi.getEmployees(),
+      ]);
+      setSchedules(schedulesData);
+      setEmployees(employeesData);
+    } catch {
+      toast.error("Error al cargar horarios");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const reload = async () => {
+    const data = await schedulesApi.getAll();
+    setSchedules(data);
+  };
 
   // ── Semana en el formulario ────────────────────────────────────────────────
   const goToPreviousWeek = () => {
@@ -56,8 +83,8 @@ export function useSchedules() {
     }));
   };
 
-  // ── CRUD ──────────────────────────────────────────────────────────────────
-  const handleCreateOrUpdate = () => {
+  // ── CRUD ───────────────────────────────────────────────────────────────────
+  const handleCreateOrUpdate = async () => {
     if (!formData.employeeId || formData.daySchedules.length === 0) {
       toast.error("Por favor completa todos los campos y selecciona al menos un día");
       return;
@@ -74,47 +101,49 @@ export function useSchedules() {
       }
     }
 
-    const employee = EMPLOYEES.find(e => e.id === formData.employeeId);
-    if (!employee) return;
+    const weekStartDate = formatDateToISO(formWeekStart);
 
-    if (editingSchedule) {
-      setSchedules(prev => prev.map(s =>
-        s.id === editingSchedule.id
-          ? { ...s, employeeId: formData.employeeId, employeeName: employee.name, weekStartDate: formWeekStart, daySchedules: formData.daySchedules }
-          : s
-      ));
-      toast.success("Horario actualizado exitosamente");
-    } else {
-      const newSchedule: WeeklySchedule = {
-        id:            Math.max(...schedules.map(s => s.id), 0) + 1,
-        employeeId:    formData.employeeId,
-        employeeName:  employee.name,
-        weekStartDate: formWeekStart,
-        daySchedules:  formData.daySchedules,
-        isActive:      true,
-      };
-      setSchedules(prev => [...prev, newSchedule]);
-      toast.success("Horario creado exitosamente");
+    try {
+      if (editingSchedule) {
+        await schedulesApi.update(formData.employeeId, weekStartDate, formData.daySchedules);
+        toast.success("Horario actualizado exitosamente");
+      } else {
+        await schedulesApi.create({
+          employeeId:    formData.employeeId,
+          weekStartDate,
+          daySchedules:  formData.daySchedules,
+        });
+        toast.success("Horario creado exitosamente");
+      }
+      await reload();
+      resetForm();
+    } catch (err: any) {
+      toast.error(err.message ?? "Error al guardar horario");
     }
-    resetForm();
   };
 
-  const handleDelete = () => {
+  const handleDelete = async () => {
     if (!scheduleToDelete) return;
-    setSchedules(prev => prev.filter(s => s.id !== scheduleToDelete));
-    toast.success("Horario eliminado");
-    setDeleteDialogOpen(false);
-    setScheduleToDelete(null);
+    try {
+      await schedulesApi.remove(scheduleToDelete.employeeId, scheduleToDelete.weekStartDate);
+      toast.success("Horario eliminado");
+      await reload();
+    } catch {
+      toast.error("Error al eliminar horario");
+    } finally {
+      setDeleteDialogOpen(false);
+      setScheduleToDelete(null);
+    }
   };
 
-  const confirmDelete = (id: number) => {
-    setScheduleToDelete(id);
+  const confirmDelete = (schedule: WeeklySchedule) => {
+    setScheduleToDelete(schedule);
     setDeleteDialogOpen(true);
   };
 
   const handleEdit = (schedule: WeeklySchedule) => {
     setEditingSchedule(schedule);
-    setFormWeekStart(schedule.weekStartDate);
+    setFormWeekStart(new Date(schedule.weekStartDate + "T00:00:00"));
     setFormData({ employeeId: schedule.employeeId, daySchedules: [...schedule.daySchedules] });
     setIsDialogOpen(true);
   };
@@ -145,8 +174,7 @@ export function useSchedules() {
   const formWeekDays = getWeekDays(formWeekStart);
 
   return {
-    schedules, filteredSchedules,
-    employees: EMPLOYEES,
+    schedules, filteredSchedules, employees, loading,
     isDialogOpen, setIsDialogOpen,
     editingSchedule,
     deleteDialogOpen, setDeleteDialogOpen,

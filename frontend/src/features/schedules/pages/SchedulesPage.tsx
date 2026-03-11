@@ -134,7 +134,8 @@ export function SchedulesPage({ userRole }: SchedulesModuleProps) {
                 </thead>
                 <tbody className="divide-y divide-gray-200">
                   {filteredSchedules.map((schedule) => {
-                    const weekDays = getWeekDays(schedule.weekStartDate);
+                    // ← FIX 1: convertir string a Date para getWeekDays
+                    const weekDays = getWeekDays(new Date(schedule.weekStartDate + "T00:00:00"));
                     return (
                       <tr key={schedule.id} className="hover:bg-gray-50/50 transition-colors">
                         <td className="px-4 py-3">
@@ -189,7 +190,8 @@ export function SchedulesPage({ userRole }: SchedulesModuleProps) {
                               <Button variant="ghost" size="icon" onClick={() => handleEdit(schedule)} className="h-8 w-8 hover:bg-[#60A5FA]/10 hover:text-[#60A5FA]">
                                 <Pencil className="w-3.5 h-3.5" />
                               </Button>
-                              <Button variant="ghost" size="icon" onClick={() => confirmDelete(schedule.id)} className="h-8 w-8 hover:bg-[#F87171]/10 hover:text-[#F87171]">
+                              {/* ← FIX 2: pasar schedule completo en lugar de schedule.id */}
+                              <Button variant="ghost" size="icon" onClick={() => confirmDelete(schedule)} className="h-8 w-8 hover:bg-[#F87171]/10 hover:text-[#F87171]">
                                 <Trash2 className="w-3.5 h-3.5" />
                               </Button>
                             </div>

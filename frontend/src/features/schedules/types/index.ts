@@ -11,10 +11,11 @@ export interface DaySchedule {
 }
 
 export interface WeeklySchedule {
-  id: number;
+  id: string;
   employeeId: string;
   employeeName: string;
-  weekStartDate: Date;
+  employeeSpecialty: string;
+  weekStartDate: string;       // "YYYY-MM-DD" — el backend siempre devuelve string
   daySchedules: DaySchedule[];
   isActive: boolean;
 }

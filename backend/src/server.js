@@ -11,6 +11,7 @@ const employeeRoutes    = require('./routes/employees.routes.js');
 const clientRoutes      = require('./routes/clients.routes.js');
 const salesRoutes       = require('./routes/sales.routes.js');
 const categoriesRoutes  = require('./routes/categories.routes.js');
+const quotationsRoutes    = require('./routes/quotations.routes.js');
 const schedulesRoutes   = require('./routes/schedules.routes.js');
 const dashboardRoutes   = require('./routes/dashboard.routes.js');
 const newsRoutes        = require('./routes/news.routes.js');
@@ -19,6 +20,8 @@ const usersRoutes       = require('./routes/users.routes.js');
 const rolesRoutes       = require('./routes/roles.routes.js');
 const { router: authRouter } = require('./routes/auth.routes.js');
 const permissionsRoutes = require("./routes/permissions.routes.js");
+
+
 // ── Registrar rutas ───────────────────────────────────────────
 app.use('/appointments',     appointmentRoutes);
 app.use("/permissions",     permissionsRoutes);
@@ -44,6 +47,8 @@ app.use('/users',            usersRoutes);
 app.use('/api/users',        usersRoutes);
 app.use('/roles',            rolesRoutes);
 app.use('/api/roles',        rolesRoutes);
+app.use('/quotations',       quotationsRoutes);
+app.use('/api/quotations',   quotationsRoutes);
 app.use('/auth',             authRouter);
 app.use('/api/auth',         authRouter);
 
