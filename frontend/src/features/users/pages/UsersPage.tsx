@@ -72,7 +72,11 @@ export function UsersPage({ userRole }: UsersModuleProps) {
                 <SelectTrigger className="w-40 h-8 text-sm rounded-lg border-gray-200"><SelectValue placeholder="Rol" /></SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">Todos</SelectItem>
-                  {roles.map(r => <SelectItem key={r.PK_id_rol} value={r.Nombre}>{r.Nombre}</SelectItem>)}
+                 {roles.map(r => (
+  <SelectItem key={r.id} value={r.Nombre}>
+    {r.Nombre}
+  </SelectItem>
+))}
                 </SelectContent>
               </Select>
               <Select value={filterStatus} onValueChange={(v) => { setFilterStatus(v); setCurrentPage(1); }}>

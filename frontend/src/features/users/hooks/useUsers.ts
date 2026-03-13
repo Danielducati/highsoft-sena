@@ -1,3 +1,4 @@
+// src/features/users/hooks/useUsers.ts
 import { useState, useEffect, useRef } from "react";
 import { toast } from "sonner";
 import { User, Role, UserFormData } from "../types";
@@ -43,8 +44,11 @@ export function useUsers() {
   };
 
   const loadRoles = async () => {
-    try { setRoles(await fetchRolesApi()); }
-    catch { toast.error("Error al cargar roles"); }
+    try {
+      setRoles(await fetchRolesApi());
+    } catch {
+      toast.error("Error al cargar roles");
+    }
   };
 
   // ── CRUD ──────────────────────────────────────────────────────────────────
@@ -53,6 +57,14 @@ export function useUsers() {
       toast.error("Por favor completa todos los campos requeridos");
       return;
     }
+
+    // Buscar el nombre del rol a partir del id seleccionado
+    const selectedRole = roles.find(r => r.id === parseInt(formData.roleId));
+    if (!selectedRole) {
+      toast.error("El rol seleccionado no es válido");
+      return;
+    }
+
     const body = {
       firstName:    formData.firstName,
       lastName:     formData.lastName,
@@ -60,8 +72,9 @@ export function useUsers() {
       document:     formData.document,
       email:        formData.email,
       phone:        formData.phone,
-      roleId:       parseInt(formData.roleId),
+      role:         selectedRole.Nombre, // ← nombre del rol, no el id
     };
+
     try {
       if (editingUser) {
         await updateUserApi(editingUser.id, body);
@@ -79,7 +92,7 @@ export function useUsers() {
 
   const handleToggleStatus = async (user: User) => {
     try {
-      await toggleUserStatusApi(user.id);
+      await toggleUserStatusApi(user.id, !user.isActive);
       toast.success("Estado actualizado");
       await loadUsers();
     } catch {
@@ -112,14 +125,14 @@ export function useUsers() {
     setFormData({
       firstName,
       lastName,
-      documentType: user.tipo_documento || "",
-      document:     user.numero_documento || "",
+      documentType: user.documentType || "",
+      document:     user.document     || "",
       email:        user.email,
       phone:        user.phone,
       roleId:       user.roleId?.toString() || "",
       image:        "",
     });
-    setImagePreview(user.foto_perfil || "");
+    setImagePreview(user.photo || "");
     setIsDialogOpen(true);
   };
 
@@ -152,7 +165,7 @@ export function useUsers() {
     setFormData(prev => ({ ...prev, image: "" }));
   };
 
-  // ── Filtros / paginación ───────────────────────────────────────────────────
+  // ── Filtros / paginación ──────────────────────────────────────────────────
   const filteredUsers = users.filter(u => {
     const matchSearch = u.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
                         u.email.toLowerCase().includes(searchTerm.toLowerCase()) ||

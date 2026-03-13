@@ -1,25 +1,29 @@
+// src/features/users/services/usersService.ts
 import { API_URL } from "../constants";
 import { User, Role } from "../types";
 
-const getToken = () => localStorage.getItem("token");
-const authHeader = () => ({ Authorization: `Bearer ${getToken()}` });
+const getToken   = () => localStorage.getItem("token");
+const authHeader = () => ({
+  Authorization:  `Bearer ${getToken()}`,
+  "Content-Type": "application/json",
+});
 
 export async function fetchUsersApi(): Promise<User[]> {
-  const res = await fetch(`${API_URL}/users`, { headers: authHeader() });
+  const res = await fetch(`${API_URL}/api/users`, { headers: authHeader() }); // ← /api/users
   if (!res.ok) throw new Error("Error al cargar usuarios");
   return res.json();
 }
 
 export async function fetchRolesApi(): Promise<Role[]> {
-  const res = await fetch(`${API_URL}/roles`);
+  const res = await fetch(`${API_URL}/api/users/roles`, { headers: authHeader() }); // ← /api/users/roles + token
   if (!res.ok) throw new Error("Error al cargar roles");
   return res.json();
 }
 
 export async function createUserApi(body: any): Promise<void> {
-  const res = await fetch(`${API_URL}/users`, {
+  const res = await fetch(`${API_URL}/api/users`, {
     method:  "POST",
-    headers: { "Content-Type": "application/json", ...authHeader() },
+    headers: authHeader(),
     body:    JSON.stringify(body),
   });
   if (!res.ok) {
@@ -29,9 +33,9 @@ export async function createUserApi(body: any): Promise<void> {
 }
 
 export async function updateUserApi(id: number, body: any): Promise<void> {
-  const res = await fetch(`${API_URL}/users/${id}`, {
+  const res = await fetch(`${API_URL}/api/users/${id}`, {
     method:  "PUT",
-    headers: { "Content-Type": "application/json", ...authHeader() },
+    headers: authHeader(),
     body:    JSON.stringify(body),
   });
   if (!res.ok) {
@@ -40,16 +44,17 @@ export async function updateUserApi(id: number, body: any): Promise<void> {
   }
 }
 
-export async function toggleUserStatusApi(id: number): Promise<void> {
-  const res = await fetch(`${API_URL}/users/${id}/estado`, {
+export async function toggleUserStatusApi(id: number, isActive: boolean): Promise<void> {
+  const res = await fetch(`${API_URL}/api/users/${id}/status`, { // ← /status no /estado
     method:  "PATCH",
     headers: authHeader(),
+    body:    JSON.stringify({ isActive }),
   });
   if (!res.ok) throw new Error("Error al actualizar estado");
 }
 
 export async function deleteUserApi(id: number): Promise<void> {
-  const res = await fetch(`${API_URL}/users/${id}`, {
+  const res = await fetch(`${API_URL}/api/users/${id}`, {
     method:  "DELETE",
     headers: authHeader(),
   });

@@ -1,3 +1,4 @@
+// src/features/roles/hooks/useRoles.ts
 import { useState, useEffect } from "react";
 import { toast } from "sonner";
 import { Role, Permission } from "../types";
@@ -5,9 +6,9 @@ import { rolesService } from "../services";
 import { parseCategory } from "../constants";
 
 export function useRoles() {
-  const [roles, setRoles]                             = useState<Role[]>([]);
+  const [roles, setRoles]                               = useState<Role[]>([]);
   const [availablePermissions, setAvailablePermissions] = useState<Permission[]>([]);
-  const [loading, setLoading]                         = useState(true);
+  const [loading, setLoading]                           = useState(true);
 
   useEffect(() => {
     fetchRoles();
@@ -28,8 +29,8 @@ export function useRoles() {
   const fetchPermissions = async () => {
     try {
       const data = await rolesService.getPermissions();
-      const mapped = data.map((p) => ({
-        id:       p.id,
+      const mapped: Permission[] = data.map((p) => ({
+        id:       String(p.id),
         nombre:   p.nombre,
         category: parseCategory(p.nombre),
       }));

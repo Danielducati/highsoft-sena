@@ -44,25 +44,25 @@ export function RolesPage({ userRole }: RolesModuleProps) {
   };
 
   const handleSubmit = async () => {
-    if (!formData.nombre || !formData.descripcion) {
-      toast.error("Por favor completa todos los campos requeridos");
-      return;
+  if (!formData.nombre || !formData.descripcion) {
+    toast.error("Por favor completa todos los campos requeridos");
+    return;
+  }
+  if (formData.permisosIds.length === 0) {
+    toast.error("Debes asignar al menos un permiso al rol");
+    return;
+  }
+  try {
+    if (editingRole) {
+      await updateRole(editingRole.id, formData);
+    } else {
+      await createRole(formData);
     }
-    if (formData.permisosIds.length === 0) {
-      toast.error("Debes asignar al menos un permiso al rol");
-      return;
-    }
-    try {
-      if (editingRole) {
-        await updateRole(editingRole.id, formData);
-      } else {
-        await createRole(formData);
-      }
-      closeDialog();
-    } catch (err: any) {
-      toast.error(err.message ?? "Error al guardar el rol");
-    }
-  };
+    closeDialog();
+  } catch (err: any) {
+    toast.error(err.message ?? "Error al guardar el rol"); // ← ya muestra el mensaje del backend
+  }
+};
 
   const handleEdit = (role: Role) => {
     setEditingRole(role);

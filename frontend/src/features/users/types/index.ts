@@ -1,4 +1,9 @@
+import { Key } from "react";
+
 export interface User {
+  photo: string;
+  document: string;
+  documentType: string;
   id: number;
   name: string;
   email: string;
@@ -15,6 +20,7 @@ export interface User {
 }
 
 export interface Role {
+  id: Key | null | undefined;
   PK_id_rol: number;
   Nombre: string;
   Estado: string;

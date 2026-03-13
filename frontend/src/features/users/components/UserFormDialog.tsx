@@ -1,3 +1,4 @@
+// src/features/users/components/UserFormDialog.tsx
 import { RefObject } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "../../../shared/ui/dialog";
 import { Button } from "../../../shared/ui/button";
@@ -11,18 +12,18 @@ import { User, Role, UserFormData } from "../types";
 import { DOCUMENT_TYPES, DEFAULT_PASSWORD } from "../constants";
 
 interface UserFormDialogProps {
-  isOpen: boolean;
-  onOpenChange: (v: boolean) => void;
-  editingUser: User | null;
-  formData: UserFormData;
-  setFormData: (d: UserFormData) => void;
-  imagePreview: string;
-  fileInputRef: RefObject<HTMLInputElement>;
-  roles: Role[];
-  onSubmit: () => void;
-  onCancel: () => void;
+  isOpen:        boolean;
+  onOpenChange:  (v: boolean) => void;
+  editingUser:   User | null;
+  formData:      UserFormData;
+  setFormData:   (d: UserFormData) => void;
+  imagePreview:  string;
+  fileInputRef:  RefObject<HTMLInputElement>;
+  roles:         Role[];
+  onSubmit:      () => void;
+  onCancel:      () => void;
   onImageUpload: (e: React.ChangeEvent<HTMLInputElement>) => void;
-  onClearImage: () => void;
+  onClearImage:  () => void;
 }
 
 export function UserFormDialog({
@@ -70,11 +71,21 @@ export function UserFormDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Nombre *</Label>
-              <Input value={formData.firstName} onChange={(e) => setFormData({ ...formData, firstName: e.target.value })} placeholder="Juan" className="rounded-lg border-gray-200" />
+              <Input
+                value={formData.firstName}
+                onChange={(e) => setFormData({ ...formData, firstName: e.target.value })}
+                placeholder="Juan"
+                className="rounded-lg border-gray-200"
+              />
             </div>
             <div className="space-y-2">
               <Label>Apellido *</Label>
-              <Input value={formData.lastName} onChange={(e) => setFormData({ ...formData, lastName: e.target.value })} placeholder="Pérez" className="rounded-lg border-gray-200" />
+              <Input
+                value={formData.lastName}
+                onChange={(e) => setFormData({ ...formData, lastName: e.target.value })}
+                placeholder="Pérez"
+                className="rounded-lg border-gray-200"
+              />
             </div>
           </div>
 
@@ -82,8 +93,13 @@ export function UserFormDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Tipo de Documento</Label>
-              <Select value={formData.documentType} onValueChange={(v) => setFormData({ ...formData, documentType: v })}>
-                <SelectTrigger className="rounded-lg border-gray-200"><SelectValue placeholder="Seleccionar" /></SelectTrigger>
+              <Select
+                value={formData.documentType}
+                onValueChange={(v) => setFormData({ ...formData, documentType: v })}
+              >
+                <SelectTrigger className="rounded-lg border-gray-200">
+                  <SelectValue placeholder="Seleccionar" />
+                </SelectTrigger>
                 <SelectContent>
                   {DOCUMENT_TYPES.map(dt => (
                     <SelectItem key={dt.value} value={dt.value}>{dt.label}</SelectItem>
@@ -93,7 +109,12 @@ export function UserFormDialog({
             </div>
             <div className="space-y-2">
               <Label>Número de Documento</Label>
-              <Input value={formData.document} onChange={(e) => setFormData({ ...formData, document: e.target.value })} placeholder="1234567890" className="rounded-lg border-gray-200" />
+              <Input
+                value={formData.document}
+                onChange={(e) => setFormData({ ...formData, document: e.target.value })}
+                placeholder="1234567890"
+                className="rounded-lg border-gray-200"
+              />
             </div>
           </div>
 
@@ -101,22 +122,42 @@ export function UserFormDialog({
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label>Email *</Label>
-              <Input type="email" value={formData.email} onChange={(e) => setFormData({ ...formData, email: e.target.value })} placeholder="usuario@email.com" className="rounded-lg border-gray-200" />
+              <Input
+                type="email"
+                value={formData.email}
+                onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+                placeholder="usuario@email.com"
+                className="rounded-lg border-gray-200"
+              />
             </div>
             <div className="space-y-2">
               <Label>Teléfono</Label>
-              <Input value={formData.phone} onChange={(e) => setFormData({ ...formData, phone: e.target.value })} placeholder="+57 300 123 4567" className="rounded-lg border-gray-200" />
+              <Input
+                value={formData.phone}
+                onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+                placeholder="+57 300 123 4567"
+                className="rounded-lg border-gray-200"
+              />
             </div>
           </div>
 
           {/* Rol */}
           <div className="space-y-2">
             <Label>Rol *</Label>
-            <Select value={formData.roleId} onValueChange={(v) => setFormData({ ...formData, roleId: v })}>
-              <SelectTrigger className="rounded-lg border-gray-200"><SelectValue placeholder="Seleccionar rol" /></SelectTrigger>
+            <Select
+              value={formData.roleId}
+              onValueChange={(v) => setFormData({ ...formData, roleId: v })}
+            >
+              <SelectTrigger className="rounded-lg border-gray-200">
+                <SelectValue placeholder="Seleccionar rol" />
+              </SelectTrigger>
               <SelectContent>
                 {roles.map(r => (
-                  <SelectItem key={r.PK_id_rol} value={r.PK_id_rol.toString()}>{r.Nombre}</SelectItem>
+                  r.id != null ? (
+                    <SelectItem key={r.id} value={r.id.toString()}>
+                      {r.Nombre}
+                    </SelectItem>
+                  ) : null
                 ))}
               </SelectContent>
             </Select>

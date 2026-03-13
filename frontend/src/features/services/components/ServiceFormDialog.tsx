@@ -122,7 +122,7 @@ export function ServiceFormDialog({
                 value={formData.FK_categoria_servicios}
                 onValueChange={(value) => {
                   const cat = categories.find(c => c.id.toString() === value);
-                  setFormData({ ...formData, FK_categoria_servicios: value, category: cat?.Nombre || "" });
+                  setFormData({ ...formData, FK_categoria_servicios: value, category: cat?.nombre || "" });
                 }}
               >
                 <SelectTrigger className="border-gray-300"><SelectValue placeholder="Seleccionar categoría" /></SelectTrigger>
@@ -131,7 +131,7 @@ export function ServiceFormDialog({
                     <SelectItem key={cat.id} value={cat.id.toString()}>
                       <div className="flex items-center gap-2">
                         <div className="w-3 h-3 rounded-full" style={{ backgroundColor: cat.color || "#78D1BD" }} />
-                        <span>{cat.Nombre}</span>
+                        <span>{cat.nombre}</span>
                       </div>
                     </SelectItem>
                   ))}

@@ -1,68 +1,120 @@
+// src/controllers/categories.controller.js
 const categoriesModel = require("../models/categories");
 
 const getAllCategories = async (req, res) => {
-try {
+  try {
     const soloActivos = req.query.all !== "true";
     res.json(await categoriesModel.getAll({ soloActivos }));
-} catch (err) {
+  } catch (err) {
     console.error("Error GET /categories:", err);
     res.status(500).json({ error: "Error al obtener categorías" });
-}
+  }
 };
 
 const getCategoryById = async (req, res) => {
-try {
-    const cat = await categoriesModel.getById(req.params.id);
+  try {
+    const id = Number(req.params.id);
+    if (!id || isNaN(id))
+      return res.status(400).json({ error: "ID inválido" });
+
+    const cat = await categoriesModel.getById(id);
     if (!cat) return res.status(404).json({ error: "Categoría no encontrada" });
     res.json(cat);
-} catch (err) {
+  } catch (err) {
     console.error("Error GET /categories/:id:", err);
     res.status(500).json({ error: "Error al obtener la categoría" });
-}
+  }
 };
 
 const createCategory = async (req, res) => {
-try {
+  try {
     const { nombre, descripcion, color } = req.body;
-    if (!nombre) return res.status(400).json({ error: "El nombre es obligatorio" });
 
-    const cat = await categoriesModel.create({ nombre, descripcion, color });
+    if (!nombre || typeof nombre !== "string" || nombre.trim() === "")
+      return res.status(400).json({ error: "El nombre es obligatorio" });
+
+    if (nombre.trim().length < 2)
+      return res.status(400).json({ error: "El nombre debe tener al menos 2 caracteres" });
+
+    if (nombre.trim().length > 100)
+      return res.status(400).json({ error: "El nombre no puede superar 100 caracteres" });
+
+    if (color && !/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(color))
+      return res.status(400).json({ error: "El color debe ser un código hexadecimal válido (ej: #FF5733)" });
+
+    const cat = await categoriesModel.create({
+      nombre: nombre.trim(),
+      descripcion: descripcion?.trim() ?? null,
+      color: color ?? null,
+    });
     res.status(201).json(cat);
-} catch (err) {
+  } catch (err) {
+    if (err.code === "P2002")
+      return res.status(409).json({ error: "Ya existe una categoría con ese nombre" });
     console.error("Error POST /categories:", err);
     res.status(500).json({ error: "Error al crear la categoría" });
-}
+  }
 };
 
 const updateCategory = async (req, res) => {
-try {
-    const { nombre, descripcion, color, estado } = req.body;
-    if (!nombre) return res.status(400).json({ error: "El nombre es obligatorio" });
+  try {
+    const id = Number(req.params.id);
+    if (!id || isNaN(id))
+      return res.status(400).json({ error: "ID inválido" });
 
-    const cat = await categoriesModel.update(req.params.id, { nombre, descripcion, color, estado });
+    const { nombre, descripcion, color, estado } = req.body;
+
+    if (!nombre || typeof nombre !== "string" || nombre.trim() === "")
+      return res.status(400).json({ error: "El nombre es obligatorio" });
+
+    if (nombre.trim().length < 2)
+      return res.status(400).json({ error: "El nombre debe tener al menos 2 caracteres" });
+
+    if (nombre.trim().length > 100)
+      return res.status(400).json({ error: "El nombre no puede superar 100 caracteres" });
+
+    if (color && !/^#([0-9A-Fa-f]{3}|[0-9A-Fa-f]{6})$/.test(color))
+      return res.status(400).json({ error: "El color debe ser un código hexadecimal válido (ej: #FF5733)" });
+
+    const ESTADOS_VALIDOS = ["Activo", "Inactivo"];
+    if (estado && !ESTADOS_VALIDOS.includes(estado))
+      return res.status(400).json({ error: `Estado inválido. Valores permitidos: ${ESTADOS_VALIDOS.join(", ")}` });
+
+    const cat = await categoriesModel.update(id, {
+      nombre: nombre.trim(),
+      descripcion: descripcion?.trim() ?? null,
+      color: color ?? null,
+      estado,
+    });
     if (!cat) return res.status(404).json({ error: "Categoría no encontrada" });
     res.json(cat);
-} catch (err) {
+  } catch (err) {
     if (err.code === "P2025")
-    return res.status(404).json({ error: "Categoría no encontrada" });
+      return res.status(404).json({ error: "Categoría no encontrada" });
+    if (err.code === "P2002")
+      return res.status(409).json({ error: "Ya existe una categoría con ese nombre" });
     console.error("Error PUT /categories/:id:", err);
     res.status(500).json({ error: "Error al actualizar la categoría" });
-}
+  }
 };
 
 const deactivateCategory = async (req, res) => {
-try {
-    await categoriesModel.deactivate(req.params.id);
+  try {
+    const id = Number(req.params.id);
+    if (!id || isNaN(id))
+      return res.status(400).json({ error: "ID inválido" });
+
+    await categoriesModel.deactivate(id);
     res.json({ mensaje: "Categoría desactivada correctamente" });
-} catch (err) {
+  } catch (err) {
     if (err.code === "P2025")
-    return res.status(404).json({ error: "Categoría no encontrada" });
+      return res.status(404).json({ error: "Categoría no encontrada" });
     console.error("Error DELETE /categories/:id:", err);
     res.status(500).json({ error: "Error al desactivar la categoría" });
-}
+  }
 };
 
 module.exports = {
-getAllCategories, getCategoryById,
-createCategory, updateCategory, deactivateCategory,
+  getAllCategories, getCategoryById,
+  createCategory, updateCategory, deactivateCategory,
 };

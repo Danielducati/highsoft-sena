@@ -60,8 +60,8 @@ export function QuotationFormDialog({
             <Select value={formData.clientId} onValueChange={(v) => setFormData({ ...formData, clientId: v })}>
               <SelectTrigger><SelectValue placeholder="Selecciona un cliente" /></SelectTrigger>
               <SelectContent>
-                {clients.map(c => (
-                  <SelectItem key={c.id || c.PK_id_cliente} value={(c.id || c.PK_id_cliente).toString()}>
+                {clients.filter(c => c.id != null).map(c => (
+                  <SelectItem key={c.id} value={c.id.toString()}>
                     {c.nombre} {c.apellido}
                   </SelectItem>
                 ))}

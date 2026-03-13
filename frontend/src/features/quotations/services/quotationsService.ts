@@ -4,19 +4,30 @@ import { Quotation, QuotationStatus } from "../types";
 const getToken = () => localStorage.getItem("token");
 
 export async function fetchQuotationsApi(): Promise<Quotation[]> {
-  const res = await fetch(`${API_URL}/quotations`);
+  const res = await fetch(`${API_URL}/quotations`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
   if (!res.ok) throw new Error("Error al cargar cotizaciones");
   return res.json();
 }
 
 export async function fetchClientsApi(): Promise<any[]> {
-  const res = await fetch(`${API_URL}/clients`);
+  const token = getToken();
+  const res = await fetch(`${API_URL}/clients`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
   if (!res.ok) throw new Error("Error al cargar clientes");
-  return res.json();
+  const data = await res.json();
+  return data.map((c: any) => ({
+    ...c,
+    id: c.id ?? c.PK_id_cliente,
+  }));
 }
 
 export async function fetchServicesApi(): Promise<any[]> {
-  const res = await fetch(`${API_URL}/services`);
+  const res = await fetch(`${API_URL}/services`, {
+    headers: { Authorization: `Bearer ${getToken()}` },
+  });
   if (!res.ok) throw new Error("Error al cargar servicios");
   return res.json();
 }
